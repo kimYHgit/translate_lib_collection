@@ -1,5 +1,5 @@
 # zod
----
+
 스키마 선언 및 유효성 검사 라이브러리
 - TypeScript의 한계점을 극복하기 위함.
   - 런타임 단계에서의 타입 에러 처리 지원
@@ -7,13 +7,9 @@
 document : https://zod.dev/
 
 
-[보여지는 텍스트](#이동할위치의텍스트)
-~생략~
-~생략~
-#이동할위치의텍스트
 
 ### Table of contents
-- Introduction
+- [Introduction (소개)](#소개)
 - Ecosystem
   - Resources
   - API libraries
@@ -23,19 +19,19 @@ document : https://zod.dev/
   - Mocking
   - Powered by Zod
   - Utilities for Zod
-- Installation
-  - Requirements
+- [Installation (설치)](#설치)
+  - 요구사항
   - From npm (Node/Bun)
   - From deno.land/x (Deno)
 - [Basic usage(기본 사용법)](#기본-사용법)
 - [Primitives(원시 자료형)](#원시-자료형)
 - [Coercion for primitives(원시형 강제변환)](#원시형-강제변환)
+- [Literals (리터럴)](#리터럴)
+- [Strings (문자열)](#문자열)
+  - ISO datetimes
+  - IP addresses
+- [Numbers (숫자)](#숫자)
 - 
-Literals
-Strings
-ISO datetimes
-IP addresses
-Numbers
 BigInts
 NaNs
 Booleans
@@ -125,8 +121,75 @@ Ow
 Changelog
 
 
+# 소개
+[Table of contents](#table-of-contents)
+
+Zod는 TypeScript 스키마 선언 및 유효성 검사 라이브러리입니다.
+단순한 문자열부터 복잡한 중첩 객체까지 모든 데이터 유형을 "스키마"라는 용어를 사용하여 광범위하게 지칭합니다.
+
+
+Zod는 개발자 친화적으로 설계되었으며 중복된 타입 선언을 제거하는 것입니다. 
+Zod를 사용하여 유효성 검사를 선언하면 자동으로 정적 TypeScript 유형을 추론합니다. 
+복잡한 데이터 구조를 단순한 유형으로 쉽게 구성하게 합니다.
+
+**특장점**
+
+- 종속성 없음
+- Node.js 및 모든 최신 브라우저에서 작동
+- 매우 작음: 8kb minified + zipped
+- 불변: 메소드(예: .optional())는 새 인스턴스를 반환합니다.
+- 간결하고 연결 가능한 인터페이스
+- 기능적 접근 방식: JavaScript로 유효성 검사하지 말고 구문 분석(parse)을 사용합시다. TypeScript를 사용할 필요가 없습니다.
+
+
+# 설치
+
+### 요구사항
+
+- 타입스크립트 4.5 이상!
+- tsconfig.json에서 strict 모드를 활성화해야 합니다.
+
+// tsconfig.json
+```ts
+{
+  // ...
+  "compilerOptions": {
+    // ...
+    "strict": true
+  }
+}
+```
+
+### npm(노드/번)
+```
+npm install zod       # npm
+yarn add zod          # yarn
+bun add zod           # bun
+pnpm add zod          # pnpm
+```
+Zod는 또한 커밋할 때마다 카나리아 버전(테스트버전)을 게시합니다. 카나리아를 설치하려면 다음 안내를 따르세요.
+
+```
+npm install zod@canary       # npm
+yarn add zod@canary          # yarn
+bun add zod@canary           # bun
+pnpm add zod@canary          # pnpm
+```
+
+### deno.land/x(deno)
+
+Node와 달리 Deno는 NPM과 같은 패키지 관리자 대신 직접 URL 가져오기를 사용합니다. 
+Zod는 deno.land/x 에서 이용 가능합니다 . 최신 버전은 다음과 같이 가져올 수 있습니다.
+
+```
+import { z } from "https://deno.land/x/zod/mod.ts";
+특정 버전을 지정할 수도 있습니다.
+
+import { z } from "https://deno.land/x/zod@v3.16.1/mod.ts";
+```
+
+
 ## 기본 사용법
----
 [Table of contents](#table-of-contents)
 
 **간단한 문자열 schema 생성**
@@ -175,7 +238,6 @@ type User = z.infer<typeof User>;
 // { username: string }
 ```
 ## 원시 자료형
----
 [Table of contents](#table-of-contents)
 
 ```ts
@@ -204,7 +266,6 @@ z.unknown();
 z.never();
 ```
 ## 원시형 강제변환
----
 [Table of contents](#table-of-contents)
 
 이제 Zod는 기본 값을 강제하는 보다 편리한 방법을 제공합니다.
@@ -275,6 +336,187 @@ document.all: 이전에는 웹 브라우저의 모든 요소를 포함하는 컬
 ```
 
 
+
+# 리터럴
+[Table of contents](#table-of-contents)
+
+리터럴 스키마는 "hello world"또는 5 와 같은 리터럴 타입을 나타냅니다.
+```ts
+const tuna = z.literal("tuna");
+const twelve = z.literal(12);
+const twobig = z.literal(2n); // bigint literal
+const tru = z.literal(true);
+
+const terrificSymbol = Symbol("terrific");
+const terrific = z.literal(terrificSymbol);
+
+// retrieve literal value
+tuna.value; // "tuna"
+```
+
+`현재 Zod에서는 날짜 리터럴이 지원되지 않습니다..`
+
+- 참고 : https://typescript-kr.github.io/pages/literal-types.html
+
+
+# 문자열
+[Table of contents](#table-of-contents)
+
+Zod에는 몇 가지 문자열 유효성 검사가 포함되어 있습니다.
+
+```ts
+// validations
+z.string().max(5);
+z.string().min(5);
+z.string().length(5);
+z.string().email();
+z.string().url();
+z.string().emoji();
+z.string().uuid();
+z.string().cuid();
+z.string().cuid2();
+z.string().ulid();
+z.string().regex(regex);
+z.string().includes(string);
+z.string().startsWith(string);
+z.string().endsWith(string);
+z.string().datetime(); // ISO 8601; default is without UTC offset, see below for options
+z.string().ip(); // defaults to IPv4 and IPv6, see below for options
+
+// transformations
+z.string().trim(); // trim whitespace
+z.string().toLowerCase(); // toLowerCase
+z.string().toUpperCase(); // toUpperCase
+```
+> Refinements 와 함께 사용할 수 있는 다른 유용한 문자열 유효성 검사 기능에 대해서는 validator.js를 확인하세요 .
+
+문자열 스키마를 생성할 때 오류 메시지를 사용자 정의(커스터마이징)할 수 있습니다.
+
+```ts
+const name = z.string({
+  required_error: "Name is required",
+  invalid_type_error: "Name must be a string",
+});
+```
+
+min()과 length() 같은 유효성 검사 메서드를 사용할 때 추가 인수를 전달하여 사용자 정의 오류 메시지를 제공할 수 있습니다.
+
+```ts
+z.string().min(5, { message: "Must be 5 or more characters long" });
+z.string().max(5, { message: "Must be 5 or fewer characters long" });
+z.string().length(5, { message: "Must be exactly 5 characters long" });
+z.string().email({ message: "Invalid email address" });
+z.string().url({ message: "Invalid url" });
+z.string().emoji({ message: "Contains non-emoji characters" });
+z.string().uuid({ message: "Invalid UUID" });
+z.string().includes("tuna", { message: "Must include tuna" });
+z.string().startsWith("https://", { message: "Must provide secure URL" });
+z.string().endsWith(".com", { message: "Only .com domains allowed" });
+z.string().datetime({ message: "Invalid datetime string! Must be UTC." });
+z.string().ip({ message: "Invalid IP address" });
+```
+
+# ISO datetimes
+
+`z.string().datetime()` 메서드는 ISO 8601을 강제합니다. 기본값은 시간대 오프셋이 없는 임의의 초 미만 소수점 이하 자릿수입니다.
+
+```ts
+const datetime = z.string().datetime();
+
+datetime.parse("2020-01-01T00:00:00Z"); // pass
+datetime.parse("2020-01-01T00:00:00.123Z"); // pass
+datetime.parse("2020-01-01T00:00:00.123456Z"); // pass (arbitrary precision)
+datetime.parse("2020-01-01T00:00:00+02:00"); // fail (no offsets allowed)
+```
+
+offset옵션을 true로 설정하면 **시간대 오프셋**을 허용할 수 있습니다.
+
+```ts
+const datetime = z.string().datetime({ offset: true });
+
+datetime.parse("2020-01-01T00:00:00+02:00"); // pass
+datetime.parse("2020-01-01T00:00:00.123+02:00"); // pass (millis optional)
+datetime.parse("2020-01-01T00:00:00.123+0200"); // pass (millis optional)
+datetime.parse("2020-01-01T00:00:00.123+02"); // pass (only offset hours)
+datetime.parse("2020-01-01T00:00:00Z"); // pass (Z still supported)
+```
+
+**정밀도**를 추가로 제한할 수 있습니다 기본적으로 임의의 1초 미만 정밀도가 지원됩니다(선택 사항).
+
+```ts
+const datetime = z.string().datetime({ precision: 3 });
+
+datetime.parse("2020-01-01T00:00:00.123Z"); // pass
+datetime.parse("2020-01-01T00:00:00Z"); // fail
+datetime.parse("2020-01-01T00:00:00.123456Z"); // fail
+```
+
+### IP 주소
+z.string().ip()메서드는 기본적으로 IPv4 및 IPv6의 유효성을 검사합니다.
+
+```ts
+const ip = z.string().ip();
+
+ip.parse("192.168.1.1"); // pass
+ip.parse("84d5:51a0:9114:1855:4cfa:f2d7:1f12:7003"); // pass
+ip.parse("84d5:51a0:9114:1855:4cfa:f2d7:1f12:192.168.1.1"); // pass
+
+ip.parse("256.1.1.1"); // fail
+ip.parse("84d5:51a0:9114:gggg:4cfa:f2d7:1f12:7003"); // fail
+```
+
+**IP version**을 설정할 수 있습니다.
+
+```ts
+const ipv4 = z.string().ip({ version: "v4" });
+ipv4.parse("84d5:51a0:9114:1855:4cfa:f2d7:1f12:7003"); // fail
+
+const ipv6 = z.string().ip({ version: "v6" });
+ipv6.parse("192.168.1.1"); // fail
+```
+
+# 숫자
+[Table of contents](#table-of-contents)
+
+숫자 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
+
+```ts
+const age = z.number({
+  required_error: "Age is required",
+  invalid_type_error: "Age must be a number",
+});
+```
+
+Zod에는 몇 가지 숫자 유효성 검사가 포함되어 있습니다.
+
+```ts
+z.number().gt(5);
+z.number().gte(5); // alias .min(5)
+z.number().lt(5);
+z.number().lte(5); // alias .max(5)
+
+z.number().int(); // value must be an integer
+
+z.number().positive(); //     > 0
+z.number().nonnegative(); //  >= 0
+z.number().negative(); //     < 0
+z.number().nonpositive(); //  <= 0
+
+z.number().multipleOf(5); // Evenly divisible by 5. Alias .step(5)
+
+z.number().finite(); // value must be finite, not Infinity or -Infinity
+z.number().safe(); // value must be between Number.MIN_SAFE_INTEGER and Number.MAX_SAFE_INTEGER
+```
+
+(Optional) 두 번째 인수를 전달하여 사용자 정의 오류 메시지를 제공할 수 있습니다.
+
+```ts
+z.number().lte(5, { message: "this👏is👏too👏big" });
+```
+
+
+
+
 ---
 이동할위치의텍스트부분을 작성할 때 영어는 반드시 "소문자"만 가능하며 띄어쓰기는 - 로 구분해야한다.
 
@@ -303,3 +545,7 @@ document.all: 이전에는 웹 브라우저의 모든 요소를 포함하는 컬
 7. `toUpperCase() / toLowerCase()`: 문자열을 대문자로 혹은 소문자로 변환합니다.
 
 8. `concat()`: 문자열을 이어 붙입니다.
+
+
+
+- 마크다운 문법 참고 - https://gist.github.com/ninanung/73addc0263b34da5f021d2f02a356b7f
