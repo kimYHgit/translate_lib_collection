@@ -9,33 +9,27 @@ document : https://zod.dev/
 
 
 ### Table of contents
-- [Introduction (소개)](#소개)
-- Ecosystem
-  - Resources
-  - API libraries
-  - Form integrations
-  - Zod to X
-  - X to Zod
-  - Mocking
-  - Powered by Zod
-  - Utilities for Zod
-- [Installation (설치)](#설치)
-  - 요구사항
-  - From npm (Node/Bun)
-  - From deno.land/x (Deno)
-- [Basic usage(기본 사용법)](#기본-사용법)
-- [Primitives(원시 자료형)](#원시-자료형)
-- [Coercion for primitives(원시형 강제변환)](#원시형-강제변환)
-- [Literals (리터럴)](#리터럴)
-- [Strings (문자열)](#문자열)
-  - ISO datetimes
-  - IP addresses
-- [Numbers (숫자)](#숫자)
-- 
-BigInts
-NaNs
-Booleans
-Dates
+- [zod](#zod)
+    - [Table of contents](#table-of-contents)
+- [소개](#소개)
+- [설치](#설치)
+    - [요구사항](#요구사항)
+    - [npm(노드/번)](#npm노드번)
+    - [deno.land/x(deno)](#denolandxdeno)
+  - [기본 사용법](#기본-사용법)
+  - [원시 자료형](#원시-자료형)
+  - [원시형 강제변환](#원시형-강제변환)
+- [리터럴](#리터럴)
+- [문자열](#문자열)
+- [ISO datetimes](#iso-datetimes)
+    - [IP 주소](#ip-주소)
+- [숫자](#숫자)
+- [BigInt](#bigint)
+- [NaN](#nan)
+- [Booleans](#booleans)
+- [Dates](#dates)
+
+
 Zod enums
 Native enums
 Optionals
@@ -513,6 +507,106 @@ z.number().safe(); // value must be between Number.MIN_SAFE_INTEGER and Number.M
 ```ts
 z.number().lte(5, { message: "this👏is👏too👏big" });
 ```
+
+# BigInt
+[Table of contents](#table-of-contents)
+
+Zod에는 bigint 유효성 검사가 포함되어 있습니다.
+
+`대소 판별, 나머지 판별`
+
+```ts
+z.bigint().gt(5n);
+z.bigint().gte(5n); // alias `.min(5n)`
+z.bigint().lt(5n);
+z.bigint().lte(5n); // alias `.max(5n)`
+
+z.bigint().positive(); // > 0n
+z.bigint().nonnegative(); // >= 0n
+z.bigint().negative(); // < 0n
+z.bigint().nonpositive(); // <= 0n
+
+z.bigint().multipleOf(5n); // Evenly divisible by 5n.
+```
+
+# NaN
+[Table of contents](#table-of-contents)
+
+nan 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
+
+```ts
+const isNaN = z.nan({
+  required_error: "isNaN is required",
+  invalid_type_error: "isNaN must be 'not a number'",
+});
+```
+
+# Booleans
+[Table of contents](#table-of-contents)
+
+Boolean 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
+
+```ts
+const isActive = z.boolean({
+  required_error: "isActive is required",
+  invalid_type_error: "isActive must be a boolean",
+});
+```
+
+# Dates
+[Table of contents](#table-of-contents)
+
+Date 객체의 인스턴스 유효성을 검사하려면 z.date()를 사용하세요.
+
+```ts
+z.date().safeParse(new Date()); // success: true
+z.date().safeParse("2022-01-12T00:00:00.000Z"); // success: false
+```
+- **notice : 입력값이 날짜 형태이더라도 `string` 타입이므로 에러 발생**
+
+날짜 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
+
+```ts
+const myDateSchema = z.date({
+  required_error: "Please select a date and time",
+  invalid_type_error: "That's not a date!",
+});
+```
+
+Zod는 몇 가지 날짜 유효성 검사를 제공합니다.
+
+```ts
+//z.date().methodType(기준 date 객체 , { message: "메시지 입력"})
+z.date().min(new Date("1900-01-01"), { message: "Too old" }); //"1900-01-01" 보다 이전 날짜이면
+z.date().max(new Date(), { message: "Too young!" }); //"현재" 보다 이후 날짜이면
+```
+
+**날짜 강제 변환(Coercion to Date)**
+
+> 2024.02월 기준 zod 버전 : 3.22.4
+
+zod 3.20부터 new Date(input)을 전달하려면 z.coerce.date()를 사용하여 입력을 전달합니다.
+
+Since zod 3.20, use z.coerce.date() to pass the input through new Date(input).
+
+```ts
+const dateSchema = z.coerce.date(); //zod date 스키마 생성
+type DateSchema = z.infer<typeof dateSchema>; //zod 객체에서 타입 추론
+// type DateSchema = Date
+
+/* valid dates */
+console.log(dateSchema.safeParse("2023-01-10T00:00:00.000Z").success); // true
+console.log(dateSchema.safeParse("2023-01-10").success); // true
+console.log(dateSchema.safeParse("1/10/23").success); // true
+console.log(dateSchema.safeParse(new Date("1/10/23")).success); // true
+
+/* invalid dates */
+console.log(dateSchema.safeParse("2023-13-10").success); // false , month 단위가 부적합.
+console.log(dateSchema.safeParse("0000-00-00").success); // false , 올바른 날짜형식 아님.
+```
+
+이전 zod 버전의 경우 [이 스레드에 설명된](https://github.com/colinhacks/zod/discussions/879#discussioncomment-2036276) `z.preprocess` 대로 사용하세요 .
+
 
 
 
