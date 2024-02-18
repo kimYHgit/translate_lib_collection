@@ -8,21 +8,21 @@ document : https://zod.dev/
 
 
 
-### Table of contents
+# Table of contents
 - [zod](#zod)
-    - [Table of contents](#table-of-contents)
+- [Table of contents](#table-of-contents)
 - [소개](#소개)
 - [설치](#설치)
     - [요구사항](#요구사항)
     - [npm(노드/번)](#npm노드번)
     - [deno.land/x(deno)](#denolandxdeno)
-  - [기본 사용법](#기본-사용법)
-  - [원시 자료형](#원시-자료형)
-  - [원시형 강제변환](#원시형-강제변환)
+- [기본 사용법](#기본-사용법)
+- [원시 자료형](#원시-자료형)
+- [원시형 강제변환](#원시형-강제변환)
 - [리터럴](#리터럴)
 - [문자열](#문자열)
-- [ISO datetimes](#iso-datetimes)
-      - [IP 주소](#ip-주소)
+    - [ISO datetimes](#iso-datetimes)
+    - [IP 주소](#ip-주소)
 - [숫자](#숫자)
 - [BigInt](#bigint)
 - [NaN](#nan)
@@ -32,7 +32,6 @@ document : https://zod.dev/
 - [Native enums](#native-enums)
 - [Optionals(옵셔널)](#optionals옵셔널)
 - [Nullables(null가능)](#nullablesnull가능)
-
 
 
 Objects
@@ -132,20 +131,20 @@ Zod를 사용하여 유효성 검사를 선언하면 자동으로 정적 TypeScr
 - 종속성 없음
 - Node.js 및 모든 최신 브라우저에서 작동
 - 매우 작음: 8kb minified + zipped
-- 불변: 메소드(예: .optional())는 새 인스턴스를 반환합니다.
+- 불변: 메소드는 새 인스턴스를 반환합니다. (예: `.optional()`)
 - 간결하고 연결 가능한 인터페이스
 - 기능적 접근 방식: JavaScript로 유효성 검사하지 말고 구문 분석(parse)을 사용합시다. TypeScript를 사용할 필요가 없습니다.
 
-
 # 설치
+[Table of contents](#table-of-contents)
 
 ### 요구사항
 
 - 타입스크립트 4.5 이상!
 - tsconfig.json에서 strict 모드를 활성화해야 합니다.
 
-// tsconfig.json
 ```ts
+// tsconfig.json
 {
   // ...
   "compilerOptions": {
@@ -173,10 +172,10 @@ pnpm add zod@canary          # pnpm
 
 ### deno.land/x(deno)
 
-Node와 달리 Deno는 NPM과 같은 패키지 관리자 대신 직접 URL 가져오기를 사용합니다. 
-Zod는 deno.land/x 에서 이용 가능합니다 . 최신 버전은 다음과 같이 가져올 수 있습니다.
+Node와 달리 Deno는 NPM과 같은 패키지 관리자 대신 직접 URL 가져오기를 사용합니다.
+Zod는 deno.land/x 에서 이용 가능합니다. 최신 버전은 다음과 같이 가져올 수 있습니다.
 
-```
+```ts
 import { z } from "https://deno.land/x/zod/mod.ts";
 특정 버전을 지정할 수도 있습니다.
 
@@ -184,7 +183,7 @@ import { z } from "https://deno.land/x/zod@v3.16.1/mod.ts";
 ```
 
 
-## 기본 사용법
+# 기본 사용법
 [Table of contents](#table-of-contents)
 
 **간단한 문자열 schema 생성**
@@ -203,8 +202,9 @@ mySchema.parse(12); // => throws ZodError
 mySchema.safeParse("tuna"); // => { success: true; data: "tuna" }
 mySchema.safeParse(12); // => { success: false; error: ZodError }
 ```
--> parse로 유효성 검사시 error 세부사항을 자세히 파악할수있음.
--> trycatch로 에러처리 해야함.
+- **parse로 유효성 검사시 error 세부사항을 자세히 파악할수있음.**
+- **trycatch로 에러처리 해야함.**
+
 ```   
 {
     "code": "invalid_type",
@@ -215,7 +215,7 @@ mySchema.safeParse(12); // => { success: false; error: ZodError }
 }
 ```   
 
--> 유효성 유무만 판정하려면 safeParse 추천.
+- **유효성 유무만 판정하려면 safeParse 추천.**
 
 **객체 스키마 생성**
 
@@ -232,7 +232,8 @@ User.parse({ username: "Ludwig" });
 type User = z.infer<typeof User>;
 // { username: string }
 ```
-## 원시 자료형
+
+# 원시 자료형
 [Table of contents](#table-of-contents)
 
 ```ts
@@ -260,7 +261,7 @@ z.unknown();
 // allows no values
 z.never();
 ```
-## 원시형 강제변환
+# 원시형 강제변환
 [Table of contents](#table-of-contents)
 
 이제 Zod는 기본 값을 강제하는 보다 편리한 방법을 제공합니다.
@@ -271,10 +272,9 @@ schema.parse("tuna"); // => "tuna"
 schema.parse(12); // => "12"
 ```
 
-구문 분석 단계에서, 입력값은 데이터를 문자열로 강제 변환하기 위해 내장된 String() 함수를 통해 전달됩니다.
+구문 분석(parse) 단계에서, 입력값은 데이터를 문자열로 강제 변환하기 위해 내장된 String() 함수를 통해 전달됩니다.
 
-반환된 스키마는 일반 ZodString 인스턴스이므로 zod의 모든 문자열 메서드를 사용할 수 있습니다.
-
+반환된 스키마는 ZodString 인스턴스이므로 zod의 모든 문자열 메서드를 사용할 수 있습니다.
 
 ```ts
 z.coerce.string().email().min(5);
@@ -282,7 +282,8 @@ z.coerce.string().email().min(5);
 
 **강제 변환(coercion) 작동방식**
 
-모든 원시 자료형은 강제 변환을 지원합니다. Zod는 내장 생성자 `String(input), Number(input), new Date(input)등)` 를 사용하여 모든 입력을 강제합니다.
+모든 원시 자료형은 강제 변환을 지원합니다. 
+Zod는 내장 생성자 `String(input), Number(input), new Date(input)등)` 를 사용하여 모든 입력을 강제합니다.
 
 ```ts
 z.coerce.string(); // String(input)
@@ -305,7 +306,8 @@ schema.parse(null); // => "null"
 
 **Boolean 강제변환**
 
-강제 변환에 대한 Zod의 접근 방식은 매우 간단합니다! 값을 Boolean(value)함수에 전달하는 것이 전부입니다. truthy 값은 true로 변환되고 falsy인 값은 false로 변환됩니다.
+강제 변환에 대한 Zod의 접근 방식은 매우 간단합니다! 값을 Boolean(value)함수에 전달하는 것이 전부입니다. 
+truthy 값은 true로 변환되고 falsy인 값은 false로 변환됩니다.
 
 ```ts
 z.coerce.boolean().parse("tuna"); // => true
@@ -329,8 +331,6 @@ null: null은 falsy입니다.
 undefined: 변수가 초기화되지 않거나 값이 할당되지 않은 상태일 때의 기본 값입니다.
 document.all: 이전에는 웹 브라우저의 모든 요소를 포함하는 컬렉션 객체였으나 현재는 사용되지 않으며 falsy입니다.
 ```
-
-
 
 # 리터럴
 [Table of contents](#table-of-contents)
@@ -411,7 +411,7 @@ z.string().datetime({ message: "Invalid datetime string! Must be UTC." });
 z.string().ip({ message: "Invalid IP address" });
 ```
 
-# ISO datetimes
+### ISO datetimes
 [Table of contents](#table-of-contents)
 
 `z.string().datetime()` 메서드는 ISO 8601을 강제합니다. 기본값은 시간대 오프셋이 없는 임의의 초 미만 소수점 이하 자릿수입니다.
@@ -447,7 +447,7 @@ datetime.parse("2020-01-01T00:00:00Z"); // fail
 datetime.parse("2020-01-01T00:00:00.123456Z"); // fail
 ```
 
-#### IP 주소
+### IP 주소
 [Table of contents](#table-of-contents)
 
 z.string().ip()메서드는 기본적으로 IPv4 및 IPv6의 유효성을 검사합니다.
@@ -560,7 +560,7 @@ const isActive = z.boolean({
 # Dates
 [Table of contents](#table-of-contents)
 
-Date 객체의 인스턴스 유효성을 검사하려면 z.date()를 사용하세요.
+Date 객체의 인스턴스 유효성을 검사하려면 `z.date()`를 사용하세요.
 
 ```ts
 z.date().safeParse(new Date()); // success: true
@@ -589,9 +589,7 @@ z.date().max(new Date(), { message: "Too young!" }); //"현재" 보다 이후 �
 
 > 2024.02월 기준 zod 버전 : 3.22.4
 
-zod 3.20부터 new Date(input)을 전달하려면 z.coerce.date()를 사용하여 입력을 전달합니다.
-
-Since zod 3.20, use z.coerce.date() to pass the input through new Date(input).
+zod 3.20부터 new Date(input)을 전달하려면 `z.coerce.date()`를 사용하여 입력을 전달합니다.
 
 ```ts
 const dateSchema = z.coerce.date(); //zod date 스키마 생성
@@ -621,7 +619,7 @@ type FishEnum = z.infer<typeof FishEnum>;
 // 'Salmon' | 'Tuna' | 'Trout'
 ```
 
-`z.enum()` 메서드는 일련의 고정된(fixed) 허용 문자열 값 세트로 스키마를 선언하는 Zod 고유의 방법입니다.
+`z.enum()` 메서드는 일련의 고정된(fixed) 허용 문자열 값 세트로 스키마를 선언하는 Zod 고유의 방법입니다. 
 `z.enum()` 메서드 인수로 배열(array)을 전달합니다. 
 혹은 대안적으로, enum 값을 문자열 튜플로 정의하기 위해  `as const`를 사용합니다. 
 자세한 내용은 [const 어설션 문서](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html#const-assertions)를 참조하세요.
@@ -802,6 +800,8 @@ optionalString.unwrap() === stringSchema; // true
 ```
 
 # Nullables(null가능)
+[Table of contents](#table-of-contents)
+
 위와 비슷한 방식으로, `z.nullable()`을 사용하여 null 허용 타입을 생성할 수 있습니다.
 
 - `z.nullable()` 인스턴스에 래핑.
@@ -832,7 +832,7 @@ nullableString.unwrap() === stringSchema; // true
 
 
 ---
-이동할위치의텍스트부분을 작성할 때 영어는 반드시 "소문자"만 가능하며 띄어쓰기는 - 로 구분해야한다.
+이동할위치의 텍스트부분을 작성할 때 영어는 반드시 "소문자"만 가능하며 띄어쓰기는 - 로 구분해야한다.
 
 [Stack](#stack-program)
 ~생략~
