@@ -17,19 +17,19 @@ document : https://zod.dev/
     - [npm(노드/번)](#npm노드번)
     - [deno.land/x(deno)](#denolandxdeno)
 - [기본 사용법](#기본-사용법)
-- [원시 자료형](#원시-자료형)
-- [원시형 강제변환](#원시형-강제변환)
-- [리터럴](#리터럴)
-- [문자열](#문자열)
+- [Primitives(원시 자료형)](#primitives원시-자료형)
+- [Coercion for primitives(원시형 강제변환)](#coercion-for-primitives원시형-강제변환)
+- [Literals(리터럴)](#literals리터럴)
+- [Strings(문자열)](#strings문자열)
     - [ISO datetimes](#iso-datetimes)
     - [IP 주소](#ip-주소)
-- [숫자](#숫자)
+- [Numbers(숫자)](#numbers숫자)
 - [BigInt](#bigint)
 - [NaN](#nan)
-- [Booleans](#booleans)
-- [Dates](#dates)
-- [Zod enums](#zod-enums)
-- [Native enums](#native-enums)
+- [Booleans(불리언)](#booleans불리언)
+- [Dates(날짜형)](#dates날짜형)
+- [Zod enums(zod 열거형)](#zod-enumszod-열거형)
+- [Native enums(네이티브 열거형)](#native-enums네이티브-열거형)
 - [Optionals(옵셔널)](#optionals옵셔널)
 - [Nullables(null가능)](#nullablesnull가능)
 
@@ -233,7 +233,7 @@ type User = z.infer<typeof User>;
 // { username: string }
 ```
 
-# 원시 자료형
+# Primitives(원시 자료형)
 [Table of contents](#table-of-contents)
 
 ```ts
@@ -261,7 +261,7 @@ z.unknown();
 // allows no values
 z.never();
 ```
-# 원시형 강제변환
+# Coercion for primitives(원시형 강제변환)
 [Table of contents](#table-of-contents)
 
 이제 Zod는 기본 값을 강제하는 보다 편리한 방법을 제공합니다.
@@ -332,7 +332,7 @@ undefined: 변수가 초기화되지 않거나 값이 할당되지 않은 상태
 document.all: 이전에는 웹 브라우저의 모든 요소를 포함하는 컬렉션 객체였으나 현재는 사용되지 않으며 falsy입니다.
 ```
 
-# 리터럴
+# Literals(리터럴)
 [Table of contents](#table-of-contents)
 
 리터럴 스키마는 "hello world"또는 5 와 같은 리터럴 타입을 나타냅니다.
@@ -354,7 +354,7 @@ tuna.value; // "tuna"
 - 참고 : https://typescript-kr.github.io/pages/literal-types.html
 
 
-# 문자열
+# Strings(문자열)
 [Table of contents](#table-of-contents)
 
 Zod에는 몇 가지 문자열 유효성 검사가 포함되어 있습니다.
@@ -473,7 +473,7 @@ const ipv6 = z.string().ip({ version: "v6" });
 ipv6.parse("192.168.1.1"); // fail
 ```
 
-# 숫자
+# Numbers(숫자)
 [Table of contents](#table-of-contents)
 
 숫자 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
@@ -545,7 +545,7 @@ const isNaN = z.nan({
 });
 ```
 
-# Booleans
+# Booleans(불리언)
 [Table of contents](#table-of-contents)
 
 Boolean 스키마를 생성할 때 특정 오류 메시지를 사용자 정의할 수 있습니다.
@@ -557,7 +557,7 @@ const isActive = z.boolean({
 });
 ```
 
-# Dates
+# Dates(날짜형)
 [Table of contents](#table-of-contents)
 
 Date 객체의 인스턴스 유효성을 검사하려면 `z.date()`를 사용하세요.
@@ -610,7 +610,7 @@ console.log(dateSchema.safeParse("0000-00-00").success); // false , 올바른 �
 이전 zod 버전의 경우 [이 스레드에 설명된](https://github.com/colinhacks/zod/discussions/879#discussioncomment-2036276) `z.preprocess` 대로 사용하세요 .
 
 
-# Zod enums
+# Zod enums(zod 열거형)
 [Table of contents](#table-of-contents)
 
 ```ts
@@ -673,7 +673,7 @@ const SalmonAndTrout = FishEnum.extract(["Salmon", "Trout"]);   //enum 목록 �
 const TunaOnly = FishEnum.exclude(["Salmon", "Trout"]); //enum 목록 중 "Salmon", "Trout" 제거
 ```
 
-# Native enums
+# Native enums(네이티브 열거형)
 [Table of contents](#table-of-contents)
 
 > zod로 정의되지 않은 타입스크립트 enum
