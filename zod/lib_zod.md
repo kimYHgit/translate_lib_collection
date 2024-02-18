@@ -22,18 +22,19 @@ document : https://zod.dev/
 - [리터럴](#리터럴)
 - [문자열](#문자열)
 - [ISO datetimes](#iso-datetimes)
-    - [IP 주소](#ip-주소)
+      - [IP 주소](#ip-주소)
 - [숫자](#숫자)
 - [BigInt](#bigint)
 - [NaN](#nan)
 - [Booleans](#booleans)
 - [Dates](#dates)
+- [Zod enums](#zod-enums)
+- [Native enums](#native-enums)
+- [Optionals(옵셔널)](#optionals옵셔널)
+- [Nullables(null가능)](#nullablesnull가능)
 
 
-Zod enums
-Native enums
-Optionals
-Nullables
+
 Objects
 .shape
 .keyof
@@ -53,7 +54,7 @@ Arrays
 .min/.max/.length
 Tuples
 Unions
-Discriminated unions
+Discriminated unions(판별 유니언)
 Records
 Record key type
 Maps
@@ -411,6 +412,7 @@ z.string().ip({ message: "Invalid IP address" });
 ```
 
 # ISO datetimes
+[Table of contents](#table-of-contents)
 
 `z.string().datetime()` 메서드는 ISO 8601을 강제합니다. 기본값은 시간대 오프셋이 없는 임의의 초 미만 소수점 이하 자릿수입니다.
 
@@ -445,7 +447,9 @@ datetime.parse("2020-01-01T00:00:00Z"); // fail
 datetime.parse("2020-01-01T00:00:00.123456Z"); // fail
 ```
 
-### IP 주소
+#### IP 주소
+[Table of contents](#table-of-contents)
+
 z.string().ip()메서드는 기본적으로 IPv4 및 IPv6의 유효성을 검사합니다.
 
 ```ts
@@ -606,6 +610,222 @@ console.log(dateSchema.safeParse("0000-00-00").success); // false , 올바른 �
 ```
 
 이전 zod 버전의 경우 [이 스레드에 설명된](https://github.com/colinhacks/zod/discussions/879#discussioncomment-2036276) `z.preprocess` 대로 사용하세요 .
+
+
+# Zod enums
+[Table of contents](#table-of-contents)
+
+```ts
+const FishEnum = z.enum(["Salmon", "Tuna", "Trout"]);
+type FishEnum = z.infer<typeof FishEnum>;
+// 'Salmon' | 'Tuna' | 'Trout'
+```
+
+`z.enum()` 메서드는 일련의 고정된(fixed) 허용 문자열 값 세트로 스키마를 선언하는 Zod 고유의 방법입니다.
+`z.enum()` 메서드 인수로 배열(array)을 전달합니다. 
+혹은 대안적으로, enum 값을 문자열 튜플로 정의하기 위해  `as const`를 사용합니다. 
+자세한 내용은 [const 어설션 문서](https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html#const-assertions)를 참조하세요.
+
+```ts
+const VALUES = ["Salmon", "Tuna", "Trout"] as const;
+const FishEnum = z.enum(VALUES);
+```
+
+Zod는 각 배열 요소의 정확한 값을 추론할 수 없기 때문에 이 방식은 허용되지 않습니다.
+
+```ts
+const fish = ["Salmon", "Tuna", "Trout"];
+const FishEnum = z.enum(fish);
+```
+
+> z.enum 인수로 배열이 바로 들어오는 것은 가능하지만, 배열이 할당된 식별자(변수)를 인수로 줄때는 배열에 `as const` 키워드 사용해야 한다. 
+
+
+**.enum**
+
+Zod 열거형으로 **자동 완성**(autocompletion)을 얻으려면, 해당 스키마의 **enum** 프로퍼티를 사용하십시오.
+
+```ts
+FishEnum.enum.Salmon; // => autocompletes
+
+FishEnum.enum;   //해당 enum에 정의된 값들을 자동으로 보여줌.
+/*
+=> {
+  Salmon: "Salmon",
+  Tuna: "Tuna",
+  Trout: "Trout",
+}
+*/
+```
+> `autocompletion` : IDE 기능, 코드를 작성하거나 편집할 때 일부 코드나 변수명, 메서드명 등을 자동으로 완성해주는 기능
+
+**`.options`** 프로퍼티를 사용하여 옵션 목록을 **튜플**로 검색할 수도 있습니다.
+
+```ts
+FishEnum.options; // ["Salmon", "Tuna", "Trout"];
+```
+
+**.exclude/.extract()**
+
+`.exclude()`와 `.extract()` 메소드를 사용하여 Zod 열거형의 하위 집합(subsets)을 만들 수 있습니다.
+
+```ts
+const FishEnum = z.enum(["Salmon", "Tuna", "Trout"]);
+const SalmonAndTrout = FishEnum.extract(["Salmon", "Trout"]);   //enum 목록 중 "Salmon", "Trout" 추출  
+const TunaOnly = FishEnum.exclude(["Salmon", "Trout"]); //enum 목록 중 "Salmon", "Trout" 제거
+```
+
+# Native enums
+[Table of contents](#table-of-contents)
+
+> zod로 정의되지 않은 타입스크립트 enum
+
+Zod 열거형은 열거형을 정의하고 검증하는 데 권장되는 접근 방식입니다. 
+그러나 타사 라이브러리의 열거형에 대해 유효성을 검사해야 하는 경우(또는 기존 열거형을 다시 작성하고 싶지 않은 경우)에 `z.nativeEnum()` 메서드를 사용할수 있습니다.
+
+**Numeric enums(숫자 열거형)**
+
+```ts
+enum Fruits {
+  Apple,
+  Banana,
+}
+
+const FruitEnum = z.nativeEnum(Fruits);
+type FruitEnum = z.infer<typeof FruitEnum>; // Fruits
+
+FruitEnum.parse(Fruits.Apple); // passes
+FruitEnum.parse(Fruits.Banana); // passes
+FruitEnum.parse(0); // passes  , 인덱스로 구문분석 가능
+FruitEnum.parse(1); // passes  , 인덱스로 구문분석 가능
+FruitEnum.parse(3); // fails
+```
+
+**String enums(문자열 열거형)**
+
+```ts
+enum Fruits {
+  Apple = "apple",
+  Banana = "banana",
+  Cantaloupe, // you can mix numerical and string enums
+}
+
+const FruitEnum = z.nativeEnum(Fruits);
+type FruitEnum = z.infer<typeof FruitEnum>; // Fruits
+
+FruitEnum.parse(Fruits.Apple); // passes
+FruitEnum.parse(Fruits.Cantaloupe); // passes
+FruitEnum.parse("apple"); // passes
+FruitEnum.parse("banana"); // passes
+FruitEnum.parse(0); // passes
+FruitEnum.parse("Cantaloupe"); // fails
+```
+
+`🎃Notice`
+> - Cantaloupe가 실패하는 이유는 TypeScript enum에서는 값이 지정되지 않은 경우, **앞선 값에 1을 더한 값으로 자동으로 설정되기 때문**입니다. 
+> - 예를 들어, Apple에는 "apple"이 할당되어 있고, Banana에는 "banana"가 할당되어 있습니다. 그리고 Cantaloupe는 값을 직접 할당하지 않았기 때문에 **TypeScript는 Banana에 1을 더한 값으로 할당합니다.** 하지만 이 경우에는 숫자형 enum이 아니라 문자열 enum이므로, Cantaloupe에 숫자를 더하는 것은 의미가 없습니다.
+> - 따라서 Cantaloupe가 "banana"에 1을 더한 "**banana1**" 이 되는 것이 아니라, 바로 "Cantaloupe"로 할당되어야 합니다. 하지만 TypeScript enum에서는 이러한 처리를 해주지 않습니다. 그래서 "Cantaloupe"를 parse하려고 할 때 실패하는 것입니다.
+> - 이를 해결하기 위해서는 **Cantaloupe에 직접 값을 할당해주어야 합니다.** 
+
+```ts
+enum Fruits {
+  Apple = "apple",
+  Banana = "banana",
+  Cantaloupe = "cantaloupe", // 직접 값을 할당해야함.
+}
+```
+
+**Const enums(상수 열거형)**
+
+`.nativeEnum()`기능은 `as const`가 적용된 객체(object)에도 적용됩니다. 
+⚠️ `as const` 는 TypeScript 3.4 이상이 필요합니다!
+
+```ts
+const Fruits = {
+  Apple: "apple",
+  Banana: "banana",
+  Cantaloupe: 3,
+} as const;
+
+const FruitEnum = z.nativeEnum(Fruits);
+type FruitEnum = z.infer<typeof FruitEnum>; // "apple" | "banana" | 3
+
+FruitEnum.parse("apple"); // passes
+FruitEnum.parse("banana"); // passes
+FruitEnum.parse(3); // passes
+FruitEnum.parse("Cantaloupe"); // fails
+```
+`🎃Notice`
+>  Cantaloupe가 실패하는 이유는 열거형의 값으로 "Cantaloupe"가 아닌 Cantaloupe의 **값**인 3이 설정되어 있기 때문입니다. 만약 FruitEnum.parse("Cantaloupe")를 성공시키려면, Cantaloupe의 값을 "Cantaloupe"로 설정해야 합니다.
+
+
+
+`.enum` 프로퍼티를 사용하여 기본 개체에 액세스할 수 있습니다.
+
+```ts
+FruitEnum.enum.Apple; // "apple"
+```
+
+`🎃Notice`
+> [enum관련 유용한 자료](https://xpectation.tistory.com/218) 
+
+
+# Optionals(옵셔널)
+[Table of contents](#table-of-contents)
+
+`z.optional()` 메서드를 사용하면 모든 스키마를 선택사항(옵셔널)으로 만들 수 있습니다. 
+
+- 스키마를 `ZodOptional` 인스턴스의 내부에 래핑하여  반환합니다.
+
+```ts
+const schema = z.optional(z.string());
+
+schema.parse(undefined); // => returns undefined
+type A = z.infer<typeof schema>; // string | undefined
+```
+
+- 편의를 위해 기존 스키마에서 `.optional()` 메서드를 호출할 수도 있습니다.
+
+```ts
+const user = z.object({
+  username: z.string().optional(),
+});
+type C = z.infer<typeof user>; // { username?: string | undefined };
+```
+
+`.unwrap()` 메서드를 사용하여 `ZodOptional` 인스턴스에서 래핑된 스키마를 추출할 수 있습니다.
+
+```ts
+const stringSchema = z.string();
+const optionalString = stringSchema.optional();
+optionalString.unwrap() === stringSchema; // true
+```
+
+# Nullables(null가능)
+위와 비슷한 방식으로, `z.nullable()`을 사용하여 null 허용 타입을 생성할 수 있습니다.
+
+- `z.nullable()` 인스턴스에 래핑.
+```ts
+const nullableString = z.nullable(z.string());
+nullableString.parse("asdf"); // => "asdf"
+nullableString.parse(null); // => null
+```
+- `.nullable()` 메서드 사용
+
+```ts
+const E = z.string().nullable(); // equivalent to nullableString
+type E = z.infer<typeof E>; // string | null
+```
+
+`.unwrap()` 을 사용하여 내부 스키마를 추출합니다.
+
+```ts
+const stringSchema = z.string();
+const nullableString = stringSchema.nullable();
+nullableString.unwrap() === stringSchema; // true
+```
+
+
 
 
 
