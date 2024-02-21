@@ -32,21 +32,20 @@ document : https://zod.dev/
 - [Native enums(네이티브 열거형)](#native-enums네이티브-열거형)
 - [Optionals(옵셔널)](#optionals옵셔널)
 - [Nullables(null가능)](#nullablesnull가능)
+- [Objects(객체)](#objects객체)
+  - [.shape](#shape)
+  - [.keyof](#keyof)
+  - [.extend](#extend)
+  - [.merge](#merge)
+  - [.pick/.omit](#pickomit)
+  - [.partial](#partial)
+  - [.deepPartial](#deeppartial)
+  - [.required](#required)
+  - [.passthrough](#passthrough)
+  - [.strict](#strict)
+  - [.strip](#strip)
+  - [.catchall](#catchall)
 
-
-Objects
-.shape
-.keyof
-.extend
-.merge
-.pick/.omit
-.partial
-.deepPartial
-.required
-.passthrough
-.strict
-.strip
-.catchall
 Arrays
 .element
 .nonempty
@@ -118,11 +117,11 @@ Changelog
 # 소개
 [Table of contents](#table-of-contents)
 
-Zod는 TypeScript 스키마 선언 및 유효성 검사 라이브러리입니다.
-단순한 문자열부터 복잡한 중첩 객체까지 모든 데이터 유형을 "스키마"라는 용어를 사용하여 광범위하게 지칭합니다.
+**Zod**는 TypeScript 스키마 선언 및 유효성 검사 라이브러리입니다.
+단순한 문자열부터 복잡한 중첩 객체까지 모든 데이터 유형을 "**스키마**"라는 용어를 사용하여 광범위하게 지칭합니다.
 
 
-Zod는 개발자 친화적으로 설계되었으며 중복된 타입 선언을 제거하는 것입니다. 
+Zod는 개발자 친화적으로 설계되었으며 중복된 타입 선언을 제거하는 것입니다.  
 Zod를 사용하여 유효성 검사를 선언하면 자동으로 정적 TypeScript 유형을 추론합니다. 
 복잡한 데이터 구조를 단순한 유형으로 쉽게 구성하게 합니다.
 
@@ -172,7 +171,7 @@ pnpm add zod@canary          # pnpm
 
 ### deno.land/x(deno)
 
-Node와 달리 Deno는 NPM과 같은 패키지 관리자 대신 직접 URL 가져오기를 사용합니다.
+Node와 달리 Deno는 NPM과 같은 패키지 관리자 대신 URL 가져오기를 사용합니다.  
 Zod는 deno.land/x 에서 이용 가능합니다. 최신 버전은 다음과 같이 가져올 수 있습니다.
 
 ```ts
@@ -283,7 +282,7 @@ z.coerce.string().email().min(5);
 **강제 변환(coercion) 작동방식**
 
 모든 원시 자료형은 강제 변환을 지원합니다. 
-Zod는 내장 생성자 `String(input), Number(input), new Date(input)등)` 를 사용하여 모든 입력을 강제합니다.
+Zod는 내장 생성자 `String(input), Number(input), new Date(input), etc.. ` 를 사용하여 모든 입력을 강제합니다.
 
 ```ts
 z.coerce.string(); // String(input)
@@ -824,6 +823,294 @@ const stringSchema = z.string();
 const nullableString = stringSchema.nullable();
 nullableString.unwrap() === stringSchema; // true
 ```
+
+`🎃Notice`
+> nullable로 속성을 래핑하거나, 객체 자체를 래핑할 수 있다. 
+
+```ts
+const test = z.object({
+  props1 : z.string(),
+  props2 : z.number()
+})
+
+const test2 = test.nullable()
+type inferredType = z.infer<typeof test2>
+// {
+    // props1: string;
+    // props2: number;
+// } | null
+```
+
+
+# Objects(객체)
+[Table of contents](#table-of-contents)
+
+`🎃Notice`
+> 기본적으로 프로퍼티는 **required(필수)** 이다.
+
+```ts
+// all properties are required by default
+const Dog = z.object({
+  name: z.string(),
+  age: z.number(),
+});
+
+// extract the inferred type like this
+type Dog = z.infer<typeof Dog>;
+
+// equivalent to:
+type Dog = {
+  name: string;
+  age: number;
+};
+```
+
+## .shape
+스키마의 특정 키(key)에 액세스하는 데 사용됩니다.
+
+```
+Dog.shape.name; // => string schema
+Dog.shape.age; // => number schema
+```
+
+## .keyof
+객체 스키마의 모든 키를 ZodEnum으로 생성하는 데 사용됩니다.
+
+```
+const keySchema = Dog.keyof();
+keySchema; // ZodEnum<["name", "age"]>
+```
+
+## .extend
+스키마에 필드를 추가할 수 있습니다.
+
+```
+const DogWithBreed = Dog.extend({
+  breed: z.string(),
+});
+```
+
+`🎃Notice`
+> 필드를 덮어쓰는 데 사용할 수 있습니다. **주의 필요.**
+
+## .merge
+`A.extend(B.shape)`와 동일합니다.
+
+-> A 스키마에 B 스키마를 추가하여 확장.(extend.) 
+
+```ts
+const BaseTeacher = z.object({ students: z.array(z.string()) });
+const HasID = z.object({ id: z.string() });
+
+const Teacher = BaseTeacher.merge(HasID);
+type Teacher = z.infer<typeof Teacher>; // => { students: string[], id: string }
+```
+
+> 두 스키마가 키를 공유하는 경우 B의 속성이 A의 속성을 재정의합니다. 
+
+> 반환된 스키마는 또한 B의 "unknownKeys" 정책
+> (strip/strict/passthrough) 및 포괄 스키마를 상속합니다.
+
+## .pick/.omit
+TypeScript의 유틸리티 타입인 Pick 과 Omit 에서 영감을 받아, 모든 Zod 객체 스키마에는 `.pick` 과 `.omit` 메서드가 있습니다.
+
+예시는 다음과 같습니다.
+
+```ts
+const Recipe = z.object({
+  id: z.string(),
+  name: z.string(),
+  ingredients: z.array(z.string()),
+});
+```
+
+`.pick` : zod 객체에서 특정 키만 추출 합니다.
+
+```ts
+const JustTheName = Recipe.pick({ name: true });
+type JustTheName = z.infer<typeof JustTheName>;
+// => { name: string }
+```
+
+`.omit` : zod 객체에서 특정 키를 제거 합니다.
+
+```ts
+const NoIDRecipe = Recipe.omit({ id: true });
+
+type NoIDRecipe = z.infer<typeof NoIDRecipe>;
+// => { name: string, ingredients: string[] }
+```
+
+## .partial
+TypeScript 유틸리티 타입 `Partial` 에서 영감을 받은 `.partial` 메서드는 모든 속성을 선택 사항(`optional`)으로 만듭니다.
+
+예시는 다음과 같습니다.
+
+```ts
+const user = z.object({
+  email: z.string(),
+  username: z.string(),
+});
+// { email: string; username: string }
+```
+
+zod 객체의 모든 속성을 옵셔널로 만듭니다.
+
+```ts
+const partialUser = user.partial();
+// { email?: string | undefined; username?: string | undefined }
+```
+
+특정 속성만 옵셔널로 지정할때 사용 할 수도 있습니다.
+
+```ts
+const optionalEmail = user.partial({
+  email: true,
+});
+/*
+{
+  email?: string | undefined;
+  username: string
+}
+*/
+```
+
+## .deepPartial
+`.partial` 은 한 수준 깊이에만 적용되는 얕은(shallow) 방법입니다. 중첩 객체에 적용할 수 있는 "깊은(deep)"버전도 있습니다.
+
+```ts
+const user = z.object({
+  username: z.string(),
+  location: z.object({
+    latitude: z.number(),
+    longitude: z.number(),
+  }),
+  strings: z.array(z.object({ value: z.string() })),
+});
+
+const deepPartialUser = user.deepPartial();
+
+/*
+{
+  username?: string | undefined,
+  location?: {
+    latitude?: number | undefined;
+    longitude?: number | undefined;
+  } | undefined,
+  strings?: { value?: string}[]
+}
+*/
+```
+
+> 중요한 제한 사항: `.deepPartial`은 객체, 배열 및 튜플의 계층 구조에서만 예상대로 작동합니다.
+
+## .required
+`.partial`메서드와 반대로, `.required` 메서드는 모든 속성을 필수로 만듭니다.
+
+예를 들어 다음과 같습니다.
+
+```ts
+const user = z
+  .object({
+    email: z.string(),
+    username: z.string(),
+  })
+  .partial();
+// { email?: string | undefined; username?: string | undefined }
+```
+
+모든 속성이 필수인 스키마를 생성할 수 있습니다.
+
+```ts
+const requiredUser = user.required();
+// { email: string; username: string }
+```
+
+필수로 설정할 속성을 지정할 수도 있습니다.
+
+```ts
+const requiredEmail = user.required({
+  email: true,
+});
+/*
+{
+  email: string;
+  username?: string | undefined;
+}
+*/
+```
+
+## .passthrough
+기본적으로 Zod 객체 스키마는 구문 분석 중에 인식할 수 없는 키를 제거합니다.
+
+```ts
+const person = z.object({
+  name: z.string(),
+});
+
+person.parse({
+  name: "bob dylan",
+  extraKey: 61,
+});
+// => { name: "bob dylan" }
+// extraKey has been stripped
+```
+
+알 수 없는 키를 통과하려면 `.passthrough()`를 사용하세요.
+
+```ts
+person.passthrough().parse({
+  name: "bob dylan",
+  extraKey: 61,
+});
+// => { name: "bob dylan", extraKey: 61 }
+```
+
+## .strict
+기본적으로 Zod 객체 스키마는 구문 분석 중에 인식할 수 없는 키를 제거합니다. `.strict()` 를 사용하면 알 수 없는 키를 허용하지 않을 수 있습니다.  
+입력에 알 수 없는 키가 있으면 Zod는 오류를 발생시킵니다.
+
+```ts
+const person = z
+  .object({
+    name: z.string(),
+  })
+  .strict();
+
+person.parse({
+  name: "bob dylan",
+  extraKey: 61,
+});
+// => throws ZodError
+```
+
+## .strip
+`.strip` 메서드를 사용하면 개체 스키마를 기본 동작(인식할 수 없는 키 제거)으로 재설정할 수 있습니다.
+
+## .catchall
+`catchall` 스키마를 개체 스키마에 전달할 수 있습니다. 알려지지 않은 모든 키는 이에 대해 검증됩니다.
+
+```ts
+const person = z
+  .object({
+    name: z.string(),
+  })
+  .catchall(z.number());
+
+person.parse({
+  name: "bob dylan",
+  validExtraKey: 61, // works fine
+});
+
+person.parse({
+  name: "bob dylan",
+  validExtraKey: false, // fails
+});
+// => throws ZodError
+```
+
+`.catchall()` 메서드를 사용하면 `.passthrough(), .strip()`또는 `.strict()` 가 제거됩니다.  
+이제 모든 키는 "알려진" 것으로 간주됩니다.
 
 
 
