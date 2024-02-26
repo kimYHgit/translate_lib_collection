@@ -45,72 +45,13 @@ document : https://zod.dev/
   - [.strict](#strict)
   - [.strip](#strip)
   - [.catchall](#catchall)
-- Arrays
-  - .element
-  - .nonempty
-  - .min/.max/.length
-- Tuples
-- Unions
-- Discriminated unions(판별 유니언)
-Records
-Record key type
-Maps
-Sets
-Intersections
-Recursive types
-ZodType with ZodEffects
-JSON type
-Cyclical objects
-Promises
-Instanceof
-Functions
-Preprocess
-Custom schemas
-Schema methods
-.parse
-.parseAsync
-.safeParse
-.safeParseAsync
-.refine
-Arguments
-Customize error path
-Asynchronous refinements
-Relationship to transforms
-.superRefine
-Abort early
-Type refinements
-.transform
-Chaining order
-Validating during transform
-Relationship to refinements
-Async transforms
-.default
-.describe
-.catch
-.optional
-.nullable
-.nullish
-.array
-.promise
-.or
-.and
-.brand
-.readonly
-.pipe
-You can use .pipe() to fix common issues with z.coerce.
-Guides and concepts
-Type inference
-Writing generic functions
-Constraining allowable inputs
-Error handling
-Error formatting
-Comparison
-Joi
-Yup
-io-ts
-Runtypes
-Ow
-Changelog
+- [배열](#배열)
+  - [.element](#element)
+  - [.nonempty](#nonempty)
+  - [.min/.max/.length](#minmaxlength)
+- [튜플](#튜플)
+- [유니언(Unions)](#유니언unions)
+- [판별 유니언(Discriminated unions)](#판별-유니언discriminated-unions)
 
 
 # 소개
@@ -131,7 +72,7 @@ Zod를 사용하여 유효성 검사를 선언하면 자동으로 정적 TypeScr
 - 매우 작음: 8kb minified + zipped
 - 불변: 메소드는 새 인스턴스를 반환합니다. (예: `.optional()`)
 - 간결하고 연결 가능한 인터페이스
-- 함수형 접근 방식: 검증(validation)하지 말고 구문 분석(parse)합시다. [해당 글 참고](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)  
+- 함수형 접근 방식: [검증(validation)하지 말고 구문 분석(parse)합시다.](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)  
 - JavaScript만으로도 동작합니다. TypeScript를 사용할 필요가 없습니다. 
   
 
@@ -1236,7 +1177,7 @@ for (let index = 0; index < testArray.length; index++) {
 console.log("🚀 ~ stringOrNumberOrBoolean:", stringOrNumberOrBoolean.parse(testArray[index]))
 }
 ```
-**선택적 문자열 검증**
+**선택적 문자열 검증**   
 선택적으로 form 입력의 유효성을 검사하려면 원하는 문자열 유효성 검사를 빈 문자열 리터럴과 통합해서 수행할 수 있습니다.
 
 이 예에서는 문자열이 선택적으로 주어질때, 입력값이 유효한 URL을 포함하는지를 검사합니다.
@@ -1285,6 +1226,143 @@ const myUnion = z.discriminatedUnion("status", [
 
 myUnion.parse({ status: "success", data: "yippie ki yay" });
 ```
+
+- `🎃appendix - Discriminated unions`
+
+**[example1]**
+- 타입스크립트와 Zod를 사용하여 계좌 유형을 나타내는 판별 유니언을 구현.
+
+먼저, Zod를 사용하여 각 계좌 유형에 대한 스키마를 정의합니다.
+
+```typescript
+import { z } from "zod";
+
+// Checking Account Schema
+const CheckingAccountSchema = z.object({
+  type: z.literal("checking"),
+  accountNumber: z.string(),
+  balance: z.number(),
+  overdraftLimit: z.number(),
+});
+
+// Savings Account Schema
+const SavingsAccountSchema = z.object({
+  type: z.literal("savings"),
+  accountNumber: z.string(),
+  balance: z.number(),
+  interestRate: z.number(),
+});
+
+// Investment Account Schema
+const InvestmentAccountSchema = z.object({
+  type: z.literal("investment"),
+  accountNumber: z.string(),
+  balance: z.number(),
+  investmentType: z.string(),
+});
+
+// Define Union Schema
+const AccountSchema = CheckingAccountSchema.or(SavingsAccountSchema).or(
+  InvestmentAccountSchema
+);
+```
+
+이제 각 계좌 유형에 대한 데이터를 구성하고, 해당 데이터가 유효한지 검증할 수 있습니다.
+
+```typescript
+// 예시 데이터
+const checkingAccountData = {
+  type: "checking",
+  accountNumber: "123456",
+  balance: 1000,
+  overdraftLimit: 500,
+};
+
+// 데이터 검증
+const parsedData = AccountSchema.parse(checkingAccountData);
+console.log(parsedData);
+```
+
+
+**[example2]**
+- 물류 및 재고 관리 시스템에서 판별 유니언을 활용한 예시.
+- 물류 항목은 제품(Product), 장비(Equipment), 및 자재(Material)으로 세 가지 유형이라고 가정해 보겠습니다.
+
+먼저, Zod의 `z.discriminatedUnion()`을 사용하여 이러한 세 가지 유형을 정의합니다.
+
+```typescript
+import { z } from "zod";
+
+// 제품 스키마
+const ProductSchema = z.object({
+  type: z.literal("product"),
+  name: z.string(),
+  price: z.number(),
+  quantity: z.number(),
+});
+
+// 장비 스키마
+const EquipmentSchema = z.object({
+  type: z.literal("equipment"),
+  name: z.string(),
+  serialNumber: z.string(),
+  status: z.enum(["available", "inUse", "maintenance"]),
+});
+
+// 자재 스키마
+const MaterialSchema = z.object({
+  type: z.literal("material"),
+  name: z.string(),
+  quantity: z.number(),
+  unit: z.string(),
+});
+
+// 판별 유니언을 생성
+const LogisticsItemSchema = z.discriminatedUnion(
+  "type",
+  {
+    product: ProductSchema,
+    equipment: EquipmentSchema,
+    material: MaterialSchema,
+  }
+);
+```
+
+이제 다양한 물류 항목을 생성하고 검증해 보겠습니다.
+
+```typescript
+// 제품 데이터
+const productData = {
+  type: "product",
+  name: "휴대폰",
+  price: 1000000,
+  quantity: 10,
+};
+
+// 장비 데이터
+const equipmentData = {
+  type: "equipment",
+  name: "포크레인",
+  serialNumber: "CRN12345",
+  status: "available",
+};
+
+// 자재 데이터
+const materialData = {
+  type: "material",
+  name: "나무판자",
+  quantity: 50,
+  unit: "개",
+};
+
+// 데이터 검증
+console.log(LogisticsItemSchema.parse(productData));
+console.log(LogisticsItemSchema.parse(equipmentData));
+console.log(LogisticsItemSchema.parse(materialData));
+```
+
+- 다양한 물류 항목을 효과적으로 모델링하고 검증할 수 있습니다. 
+- 코드가 간결해지고 가독성이 향상됩니다.
 
 
 
