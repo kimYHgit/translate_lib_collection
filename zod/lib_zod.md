@@ -45,14 +45,13 @@ document : https://zod.dev/
   - [.strict](#strict)
   - [.strip](#strip)
   - [.catchall](#catchall)
-
-Arrays
-.element
-.nonempty
-.min/.max/.length
-Tuples
-Unions
-Discriminated unions(판별 유니언)
+- Arrays
+  - .element
+  - .nonempty
+  - .min/.max/.length
+- Tuples
+- Unions
+- Discriminated unions(판별 유니언)
 Records
 Record key type
 Maps
@@ -132,7 +131,9 @@ Zod를 사용하여 유효성 검사를 선언하면 자동으로 정적 TypeScr
 - 매우 작음: 8kb minified + zipped
 - 불변: 메소드는 새 인스턴스를 반환합니다. (예: `.optional()`)
 - 간결하고 연결 가능한 인터페이스
-- 기능적 접근 방식: JavaScript로 유효성 검사하지 말고 구문 분석(parse)을 사용합시다. TypeScript를 사용할 필요가 없습니다.
+- 함수형 접근 방식: 검증(validation)하지 말고 구문 분석(parse)합시다. [해당 글 참고](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)  
+- JavaScript만으로도 동작합니다. TypeScript를 사용할 필요가 없습니다. 
+  
 
 # 설치
 [Table of contents](#table-of-contents)
@@ -866,7 +867,7 @@ type Dog = {
 ```
 
 ## .shape
-스키마의 특정 키(key)에 액세스하는 데 사용됩니다.
+객체 스키마의 특정 키(key)에 액세스하는 데 사용됩니다.
 
 ```
 Dog.shape.name; // => string schema
@@ -1085,10 +1086,10 @@ person.parse({
 ```
 
 ## .strip
-`.strip` 메서드를 사용하면 개체 스키마를 기본 동작(인식할 수 없는 키 제거)으로 재설정할 수 있습니다.
+`.strip` 메서드를 사용하면 객체 스키마를 기본 동작(인식할 수 없는 키 제거)으로 재설정할 수 있습니다.
 
 ## .catchall
-`catchall` 스키마를 개체 스키마에 전달할 수 있습니다. 알려지지 않은 모든 키는 이에 대해 검증됩니다.
+`catchall` 스키마를 객체 스키마에 전달할 수 있습니다. 알려지지 않은 모든 키는 catchall 스키마를 기준으로 검증됩니다.
 
 ```ts
 const person = z
@@ -1111,6 +1112,194 @@ person.parse({
 
 `.catchall()` 메서드를 사용하면 `.passthrough(), .strip()`또는 `.strict()` 가 제거됩니다.  
 이제 모든 키는 "알려진" 것으로 간주됩니다.
+
+
+# 배열
+[Table of contents](#table-of-contents)
+
+```ts
+const stringArray = z.array(z.string());
+
+// equivalent
+const stringArray = z.string().array();
+```
+
+`.array()` 사용시 주의하세요. 새 ZodArray인스턴스를 반환합니다.  
+이는 메소드를 호출하는 순서가 중요하다는 것을 의미합니다. 
+예를 들어:
+```ts
+z.string().optional().array(); // (string | undefined)[]
+z.string().array().optional(); // string[] | undefined
+```
+`🎃notice`
+- `.array()` 이전에 호출된 스키마 타입의 종류로 배열 요소의 타입을 단일 타입 혹은 유니언 타입으로 설정할수 있다.
+  
+## .element
+배열 요소의 스키마에 액세스하는 데 사용됩니다.
+
+```ts
+stringArray.element; // => string schema
+```
+
+## .nonempty
+배열에 요소가 하나 이상 포함되어 있는지 확인하려면 `.nonempty()`를 사용하세요.
+
+```ts
+const nonEmptyStrings = z.string().array().nonempty();
+// the inferred type is now
+// [string, ...string[]]
+
+nonEmptyStrings.parse([]); // throws: "Array cannot be empty"
+nonEmptyStrings.parse(["Ariana Grande"]); // passes
+```
+
+선택적으로 사용자 정의 오류 메시지를 지정할 수 있습니다.
+
+```ts
+// optional custom error message
+const nonEmptyStrings = z.string().array().nonempty({
+  message: "Can't be empty!",
+});
+```
+- nonempty 메서드에 객체 인수 지정한다. 
+## .min/.max/.length
+- 배열요소의 대소와 길이를 판별할 수 있습니다.
+```ts
+z.string().array().min(5); // must contain 5 or more items
+z.string().array().max(5); // must contain 5 or fewer items
+z.string().array().length(5); // must contain 5 items exactly
+```
+`🎃notice`
+`.nonempty()`과 달리 추론 타입을 변경하지 않고 유효성만  검사합니다.
+
+# 튜플
+[Table of contents](#table-of-contents)
+
+배열과 달리 튜플은 **고정 갯수의 요소**를 가지며 각 요소는 **서로 다른 타입**을 가질 수 있습니다.
+
+`🎃notice`
+배열 요소 인덱스에 따른 타입도 지정됩니다.
+
+```ts
+const athleteSchema = z.tuple([
+  z.string(), // name
+  z.number(), // jersey number
+  z.object({
+    pointsScored: z.number(),
+  }), // statistics
+]);
+
+type Athlete = z.infer<typeof athleteSchema>;
+// type Athlete = [string, number, { pointsScored: number }]
+```
+
+`.rest()` 메서드로 가변성("rest") 인수를 추가할 수 있습니다.
+```ts
+// 첫번째 요소가 string이면서, 나머지 요소 전체는 number 타입인 튜플
+const variadicTuple = z.tuple([z.string()]).rest(z.number());
+const result = variadicTuple.parse(["hello", 1, 2, 3]);
+// => [string, ...number[]];
+```
+
+# 유니언(Unions)
+[Table of contents](#table-of-contents)
+
+Zod에는 "OR" 타입을 구성하기 위한 빌트인 `z.union()`메서드가 포함되어 있습니다.
+
+```ts
+const stringOrNumber = z.union([z.string(), z.number()]);
+
+stringOrNumber.parse("foo"); // passes
+stringOrNumber.parse(14); // passes
+```
+
+Zod는 각 "옵션"에 대해 입력을 순서대로 테스트하고, 성공적으로 검증된 첫 번째 값을 반환합니다.
+
+편의를 위해 `.or()`메서드를 사용할 수도 있습니다.
+
+```ts
+const stringOrNumber = z.string().or(z.number());
+```
+
+`🎃notice`
+- 세개 이상의 유니언도 가능하다.
+- 타입 검증시 **union에서 정의된 타입 순서대로** 타입을 순회하면서 검증한다는 점 유의. 
+  
+```ts
+// const stringOrNumberOrBoolean = z.union([z.string(),z.number(),z.boolean()])
+const stringOrNumberOrBoolean = z.string().or(z.number()).or(z.boolean())
+
+
+const testArray = ['string',1,true]
+// const testArray = ['string',1,null] //Throw error
+for (let index = 0; index < testArray.length; index++) {
+console.log("🚀 ~ stringOrNumberOrBoolean:", stringOrNumberOrBoolean.parse(testArray[index]))
+}
+```
+**선택적 문자열 검증**
+선택적으로 form 입력의 유효성을 검사하려면 원하는 문자열 유효성 검사를 빈 문자열 리터럴과 통합해서 수행할 수 있습니다.
+
+이 예에서는 문자열이 선택적으로 주어질때, 입력값이 유효한 URL을 포함하는지를 검사합니다.
+
+```ts
+//.nullish() : null + undefined
+const optionalUrl = z.union([z.string().url().nullish(), z.literal("")]);  
+
+console.log(optionalUrl.safeParse(undefined).success); // true
+console.log(optionalUrl.safeParse(null).success); // true
+console.log(optionalUrl.safeParse("").success); // true
+console.log(optionalUrl.safeParse("https://zod.dev").success); // true
+console.log(optionalUrl.safeParse("not a valid url").success); // false
+```
+
+# 판별 유니언(Discriminated unions)
+[Table of contents](#table-of-contents)
+
+판별 유니언은 **모든 객체가 특정 키(key)를 공유하는** 객체 스키마의 유니언(union)입니다.
+
+```ts
+type MyUnion =
+  | { status: "success"; data: string }
+  | { status: "failed"; error: Error };
+```
+
+이러한 유니언은 `z.discriminatedUnion()`메서드로 표현될 수 있으며, 메서드 적용시 Zod가 판별자 키(위 예제에서는 `status`)를 확인하여 입력 구문 분석에 사용할 스키마를 결정할 수 있으므로 구문 분석이 더 빨라지고 Zod가 더 친숙한 오류를 보고할 수 있기 때문에 평가 속도가 빨라집니다.
+
+기본 유니언 방식에서는 제공된 각 "옵션"(유니언에 제공된 모든 타입들)에 대해 입력을 테스트하고 유효하지 않은 경우 모든 "옵션"에 대한 문제가 zod 오류에 표시됩니다. 반면에 판별 유니언에서는 '옵션' 중 하나만 선택하여 테스트하고 이 '옵션'과 관련된 문제만 표시할 수 있습니다.
+
+```ts
+// 일반적인 유니언 방식 파싱.
+const stringOrNumber = z.union([z.string(), z.number()]);
+
+stringOrNumber.parse("foo"); // passes
+stringOrNumber.parse(14); // passes
+```
+
+
+```ts
+// 판별 유니언 방식을 적용한 파싱.
+const myUnion = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("success"), data: z.string() }),
+  z.object({ status: z.literal("failed"), error: z.instanceof(Error) }),
+]);
+
+myUnion.parse({ status: "success", data: "yippie ki yay" });
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
