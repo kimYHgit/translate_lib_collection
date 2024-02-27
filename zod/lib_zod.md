@@ -52,6 +52,68 @@ document : https://zod.dev/
 - [튜플](#튜플)
 - [유니언(Unions)](#유니언unions)
 - [판별 유니언(Discriminated unions)](#판별-유니언discriminated-unions)
+- [레코드(Records)](#레코드records)
+  - [레코드 키 유형(Record key type)](#레코드-키-유형record-key-type)
+- [Maps](#maps)
+- [Sets](#sets)
+- [인터섹션(Intersections)](#인터섹션intersections)
+
+
+
+Recursive types
+ZodType with ZodEffects
+JSON type
+Cyclical objects
+Promises
+Instanceof
+Functions
+Preprocess
+Custom schemas
+Schema methods
+.parse
+.parseAsync
+.safeParse
+.safeParseAsync
+.refine
+Arguments
+Customize error path
+Asynchronous refinements
+Relationship to transforms
+.superRefine
+Abort early
+Type refinements
+.transform
+Chaining order
+Validating during transform
+Relationship to refinements
+Async transforms
+.default
+.describe
+.catch
+.optional
+.nullable
+.nullish
+.array
+.promise
+.or
+.and
+.brand
+.readonly
+.pipe
+You can use .pipe() to fix common issues with z.coerce.
+Guides and concepts
+Type inference
+Writing generic functions
+Constraining allowable inputs
+Error handling
+Error formatting
+Comparison
+Joi
+Yup
+io-ts
+Runtypes
+Ow
+Changelog
 
 
 # 소개
@@ -1364,9 +1426,152 @@ console.log(LogisticsItemSchema.parse(materialData));
 - 다양한 물류 항목을 효과적으로 모델링하고 검증할 수 있습니다. 
 - 코드가 간결해지고 가독성이 향상됩니다.
 
+# 레코드(Records)  
+[Table of contents](#table-of-contents)
 
+레코드 스키마는 `{ [k: string]: number }`와 같은 유형을 검증할때 사용합니다.
 
+스키마에 대해 객체 값의 유효성을 검사하고 싶지만 키는 신경 쓰지 않는 경우 `z.record(valueType)`를 사용하세요.
 
+```ts
+const NumberCache = z.record(z.number()); //레코드 객체의 키값이 number.
+
+type NumberCache = z.infer<typeof NumberCache>;
+// => { [k: string]: number }
+```
+
+이는 ID별로 항목을 저장하거나 캐싱하는 데 특히 유용합니다.
+
+```ts
+const userSchema = z.object({ name: z.string() }); 
+// 레코드 객체의 키 값이 object : { name: z.string() }
+const userStoreSchema = z.record(userSchema);
+
+type UserStore = z.infer<typeof userStoreSchema>;
+// => type UserStore = { [ x: string ]: { name: string } }
+
+const userStore: UserStore = {};
+
+userStore["77d2586b-9e8e-4ecf-8b21-ea7e0530eadd"] = {
+  name: "Carlotta",
+}; // passes
+
+userStore["77d2586b-9e8e-4ecf-8b21-ea7e0530eadd"] = {
+  whatever: "Ice cream sundae",
+}; // TypeError
+```
+`🎃notice`
+- z.record(`레코드 객체의 값으로 지정될 스키마`)
+
+## 레코드 키 유형(Record key type)
+[Table of contents](#table-of-contents)
+
+키와 값을 모두 확인하려면 `z.record(keyType, valueType)`을 사용하세요.
+
+```ts
+const NoEmptyKeysSchema = z.record(z.string().min(1), z.number());
+NoEmptyKeysSchema.parse({ count: 1 }); // => { 'count': 1 }
+NoEmptyKeysSchema.parse({ "": 1 }); // fails
+```
+
+**(두 개의 인수를 전달할 때 주의하세요. `valueType`가 두 번째 인수입니다.)**
+
+**숫자 키에 대한 참고 사항**
+
+- [맵드 타입(Mapped Type)이란?](https://joshua1988.github.io/ts/usage/mapped-type.html#%EB%A7%B5%EB%93%9C-%ED%83%80%EC%9E%85-mapped-type-%EC%9D%B4%EB%9E%80)
+- [[Typescript] Record 타입 사용하기](https://cheeseb.github.io/typescript/typescript-record/)
+
+`z.record(keyType, valueType)`는 숫자 키 유형을 받아들일 수 있고 TypeScript의 빌트인 Record 타입은 Record<KeyType, ValueType>이지만, Zod에서는 Record<number, any> 유형은 표현하기 어렵습니다.
+
+결과적으로 `[k: 숫자]`를 둘러싼 TypeScript의 동작은 약간 직관적이지 않습니다:
+
+```ts
+const testMap: { [k: number]: string } = {
+  1: "one",
+};
+
+for (const key in testMap) {
+  console.log(`${key}: ${typeof key}`);
+}
+// prints: `1: string`
+```
+
+보시다시피 JavaScript는 자동으로 모든 객체 키를 **문자열**로 캐스팅합니다.  
+Zod는 정적 타입과 런타임 타입 사이의 간극을 메우려는 것이므로 숫자 키로 레코드 스키마를 생성하는 방법을 제공하는 것은 의미가 없습니다.  
+런타임 JavaScript에는 숫자 키와 같은 것이 없기 때문입니다.
+
+# Maps
+[Table of contents](#table-of-contents)
+
+- [맵과 셋](https://ko.javascript.info/map-set)
+- [자바스크립트 Map 자료구조 적극 이용하기](https://dev.gmarket.com/68)
+
+```ts
+const stringNumberMap = z.map(z.string(), z.number());
+
+type StringNumberMap = z.infer<typeof stringNumberMap>;
+// type StringNumberMap = Map<string, number>
+```
+
+# Sets
+[Table of contents](#table-of-contents)
+
+- [자바스크립트 set 관련 글](https://www.daleseo.com/js-set/#google_vignette)
+
+```ts
+const numberSet = z.set(z.number());
+type NumberSet = z.infer<typeof numberSet>;
+// type NumberSet = Set<number>
+```
+
+`set`스키마는 다음 유틸리티 메소드를 사용하여 제약을 추가할 수 있습니다.
+
+```ts
+z.set(z.string()).nonempty(); // must contain at least one item
+z.set(z.string()).min(5); // must contain 5 or more items
+z.set(z.string()).max(5); // must contain 5 or fewer items
+z.set(z.string()).size(5); // must contain 5 items exactly
+```
+
+# 인터섹션(Intersections)
+[Table of contents](#table-of-contents)
+
+인터섹션은 "논리적 AND" 유형을 생성하는 데 유용합니다. 
+
+- 두 객체 타입을 교차하는 데 유용합니다. 
+```ts
+const Person = z.object({
+  name: z.string(),
+});
+
+const Employee = z.object({
+  role: z.string(),
+});
+
+const EmployedPerson = z.intersection(Person, Employee);
+
+// equivalent to:
+const EmployedPerson = Person.and(Employee);
+```
+
+일반적으로 두 객체를 병합하는 데 `A.merge(B)`를 사용하는 것이 좋습니다.   
+`.merge()` 메서드는 새로운 **ZodObject** 인스턴스를 반환하는 반면, `A.and(B)`는 `pick 및 omit`과 같은 일반적인 객체 메서드가 없는 덜 유용한 **ZodIntersection** 인스턴스를 반환합니다.
+
+[.pick/.omit](##.pick/.omit)
+
+```ts
+const a = z.union([z.number(), z.string()]);
+const b = z.union([z.number(), z.boolean()]);
+const c = z.intersection(a, b);
+
+type c = z.infer<typeof c>; // => number
+```
+
+`🎃notice`
+- 세가지 객체 병합 방법 : `z.intersection()` , `A.and(B)` , `A.merge(B)`
+- `A.merge(B)` : ZodObject 인스턴스 반환 
+- `z.intersection()` , `A.and(B)` : ZodIntersection 인스턴스 반환
+- `Zod object`의 메서드를 활용하여 후속 처리해야한다면 `A.merge(B)` 사용한다.
 
 
 
