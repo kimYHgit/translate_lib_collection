@@ -1,0 +1,32 @@
+import { z } from "zod";
+
+const recursive = ()=> {
+    const baseCategorySchema = z.object({
+        name: z.string(),
+      });
+      
+      type Category = z.infer<typeof baseCategorySchema> & {
+        subcategories: Category[];
+      };
+      
+      const categorySchema: z.ZodType<Category> = baseCategorySchema.extend({
+        subcategories: z.lazy(() => categorySchema.array()),
+      });
+
+      const test = categorySchema.parse({
+        name: "People",
+        subcategories: [
+          {
+            name: "Politicians",
+            subcategories: [
+              {
+                name: "Presidents",
+                subcategories: [],
+              },
+            ],
+          },
+        ],
+      }); // passes
+}
+
+export default recursive

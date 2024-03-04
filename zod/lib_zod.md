@@ -57,50 +57,39 @@ document : https://zod.dev/
 - [Maps](#maps)
 - [Sets](#sets)
 - [인터섹션(Intersections)](#인터섹션intersections)
+- [재귀 유형(Recursive types)](#재귀-유형recursive-types)
+  - [ZodEffect를 사용한 ZodType](#zodeffect를-사용한-zodtype)
+  - [JSON 유형](#json-유형)
+  - [순환 객체](#순환-객체)
+- [프로미스(Promises)](#프로미스promises)
+- [Instanceof](#instanceof)
+- [함수(Functions)](#함수functions)
+- [전처리(Preprocess)](#전처리preprocess)
+- [커스텀 스키마](#커스텀-스키마)
+- [스키마 메서드](#스키마-메서드)
+  - [.parse](#parse)
+  - [.parseAsync](#parseasync)
+  - [.safeParse](#safeparse)
+  - [.safeParseAsync](#safeparseasync)
+  - [.refine](#refine)
+  - [.superRefine](#superrefine)
+  - [.transform](#transform)
+  - [.default](#default)
+  - [.describe](#describe)
+  - [.catch](#catch)
+  - [.optional](#optional)
+  - [.nullable](#nullable)
+  - [.nullish](#nullish)
+  - [.array](#array)
+  - [.promise](#promise)
+  - [.or](#or)
+  - [.and](#and)
+  - [.brand](#brand)
+  - [.readonly](#readonly)
+  - [.pipe](#pipe)
+  - [.pipe()를 사용하여 z.coerce의 일반적인 문제를 해결할 수 있습니다.](#pipe를-사용하여-zcoerce의-일반적인-문제를-해결할-수-있습니다)
 
 
-
-Recursive types
-ZodType with ZodEffects
-JSON type
-Cyclical objects
-Promises
-Instanceof
-Functions
-Preprocess
-Custom schemas
-Schema methods
-.parse
-.parseAsync
-.safeParse
-.safeParseAsync
-.refine
-Arguments
-Customize error path
-Asynchronous refinements
-Relationship to transforms
-.superRefine
-Abort early
-Type refinements
-.transform
-Chaining order
-Validating during transform
-Relationship to refinements
-Async transforms
-.default
-.describe
-.catch
-.optional
-.nullable
-.nullish
-.array
-.promise
-.or
-.and
-.brand
-.readonly
-.pipe
-You can use .pipe() to fix common issues with z.coerce.
 Guides and concepts
 Type inference
 Writing generic functions
@@ -1573,14 +1562,825 @@ type c = z.infer<typeof c>; // => number
 - `z.intersection()` , `A.and(B)` : ZodIntersection 인스턴스 반환
 - `Zod object`의 메서드를 활용하여 후속 처리해야한다면 `A.merge(B)` 사용한다.
 
+# 재귀 유형(Recursive types)
+Zod에서 재귀 스키마를 정의할 수 있지만 TypeScript의 제한으로 인해 해당 유형을 정적으로 유추할 수 없습니다. 대신에 수동으로 타입을 정의하고 이를 **"유형 힌트"(type hint)** 로 Zod에 제공해야 합니다.
+
+```ts
+const baseCategorySchema = z.object({
+  name: z.string(),
+});
+
+type Category = z.infer<typeof baseCategorySchema> & {
+  subcategories: Category[];
+};
+
+const categorySchema: z.ZodType<Category> = baseCategorySchema.extend({
+  subcategories: z.lazy(() => categorySchema.array()),
+});
+
+categorySchema.parse({
+  name: "People",
+  subcategories: [
+    {
+      name: "Politicians",
+      subcategories: [
+        {
+          name: "Presidents",
+          subcategories: [],
+        },
+      ],
+    },
+  ],
+}); // passes
+```
+
+## ZodEffect를 사용한 ZodType
+`z.ZodEffects`(예를 들어 `.refine`, `.transform`, `preproces`, `etc...` ) 와 함께 `z.ZodType`를 사용하는 경우 스키마의 입력 및 출력 유형을 정의해야 합니다.  
+
+기본형태 : `z.ZodType<Output, z.ZodTypeDef, Input>`
+
+```ts
+const isValidId = (id: string): id is `${string}/${string}` =>
+  id.split("/").length === 2;
+
+const baseSchema = z.object({
+  id: z.string().refine(isValidId),
+});
+
+type Input = z.input<typeof baseSchema> & {
+  children: Input[];
+};
+
+type Output = z.output<typeof baseSchema> & {
+  children: Output[];
+};
+
+const schema: z.ZodType<Output, z.ZodTypeDef, Input> = baseSchema.extend({
+  children: z.lazy(() => schema.array()),
+});
+```
+
+## JSON 유형
+JSON 값의 유효성을 검사하려면 아래 스니펫을 사용하세요.
+
+```ts
+const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+type Literal = z.infer<typeof literalSchema>;
+type Json = Literal | { [key: string]: Json } | Json[];
+const jsonSchema: z.ZodType<Json> = z.lazy(() =>
+  z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+);
+
+jsonSchema.parse(data);
+```
 
 
+## 순환 객체
+zod는 재귀 스키마를 지원하지만, 순환 데이터를 Zod에 전달하면 무한 루프가 발생합니다.
 
 
+# 프로미스(Promises)
+
+```ts
+const numberPromise = z.promise(z.number());
+```
+"구문 분석(Parsing)"은 프로미스 스키마에서 약간 다르게 동작합니다. 유효성 검사는 두 부분으로 이루어집니다.
+
+1. Zod는 입력이 Promise의 인스턴스(즉, `.then`과 `.catch`메소드가 있는 객체)인지 동기적으로 확인합니다  
+
+2. Zod는 기존 Promise에 추가 검증 단계를 추가하는 데 `.then` 을 사용합니다. 유효성 검사 실패를 처리하려면 반환된 Promise에 `.catch`를 사용해야 합니다.
+
+```ts
+numberPromise.parse("tuna");
+// ZodError: Non-Promise type: string
+
+numberPromise.parse(Promise.resolve("tuna"));
+// => Promise<number>
+
+const test = async () => {
+  await numberPromise.parse(Promise.resolve("tuna"));
+  // ZodError: Non-number type: string
+
+  await numberPromise.parse(Promise.resolve(3.14));
+  // => 3.14
+};
+```
+
+# Instanceof
+`z.instanceof` 메서드로 입력이 클래스의 인스턴스인지 확인하는 데 사용할 수 있습니다. 이는 서드파티 라이브러리에서 내보낸 클래스에 대해 입력의 유효성을 검사하는 데 유용합니다.
+
+```ts
+class Test {
+  name: string;
+}
+
+const TestSchema = z.instanceof(Test);
+
+const blob: any = "whatever";
+TestSchema.parse(new Test()); // passes
+TestSchema.parse(blob); // throws
+```
 
 
+# 함수(Functions)
+Zod를 사용하면 "함수 스키마"를 정의할 수 있습니다.  
+이를 통해 유효성 검사 코드와 "비즈니스 로직"을 혼합하지 않고도 함수의 **입력**과 **출력**을 쉽게 확인할 수 있습니다.
+
+`z.function(args, returnType)`를 사용하여 함수 스키마를 생성할 수 있습니다.
+
+```ts
+const myFunction = z.function();
+
+type myFunction = z.infer<typeof myFunction>;
+// => ()=>unknown
+```
+
+입력과 출력을 정의합니다.
+
+```ts
+const myFunction = z
+  .function()
+  .args(z.string(), z.number()) // accepts an arbitrary number of arguments
+  .returns(z.boolean());
+
+type myFunction = z.infer<typeof myFunction>;
+// => (arg0: string, arg1: number)=>boolean
+```
+
+함수 스키마에는 함수를 받아들이고 입력과 출력의 유효성을 자동으로 검사하는 새 함수를 반환하는 `.implement()` 메서드가 있습니다.
+Function schemas have an .implement() method which accepts a function and returns a new function that automatically validates its inputs and outputs.
+
+```ts
+const trimmedLength = z
+  .function()
+  .args(z.string()) // accepts an arbitrary number of arguments
+  .returns(z.number())
+  .implement((x) => {
+    // TypeScript knows x is a string!
+    return x.trim().length;
+  });
+
+trimmedLength("sandwich"); // => 8
+trimmedLength(" asdf "); // => 4
+```
+
+입력 유효성 검사에만 관심이 있다면 `.returns()`메서드를 호출하지 마세요. 출력 유형은 `implementation`에서 추론됩니다.
+
+> 함수가 아무것도 반환하지 않는 경우 특수 옵션 `z.void()`을 사용할 수 있습니다. 이를 통해 Zod는 void 반환 함수의 유형을 적절하게 추론할 수 있습니다. (Void 반환 함수는 실제로는 `undefined`를 반환합니다.)
+
+```ts
+const myFunction = z
+  .function()
+  .args(z.string())
+  .implement((arg) => {
+    return [arg.length];
+  });
+
+myFunction; // (arg: string)=>number[]
+```
+
+함수 스키마에서 입력 및 출력 스키마를 추출할 수 있습니다.
+
+```ts
+myFunction.parameters();
+// => ZodTuple<[ZodString, ZodNumber]>
+
+myFunction.returnType();
+// => ZodBoolean
+```
+
+# 전처리(Preprocess)
+이제 Zod는 `.preprocess()`없이도 원시형 강제 변환(**primitive coercion**)을 지원합니다. 자세한 내용은 [Coercion for primitives](#coercion-for-primitives원시형-강제변환)를 참조하세요 .
+
+일반적으로 Zod는 "파싱 후 변환"(`"parse then transform"`) 패러다임에 따라 작동합니다. Zod는 먼저 입력의 유효성을 검사한 다음 변환 함수 체인(`a chain of transformation functions`)을 통해 이를 전달합니다. (변환(transform)에 대한 자세한 내용은 .transform 문서를 참조하세요 .)
+
+그러나 때로는 구문 분석(`parsing`)이 수행되기 전에 입력에 부분적으로 변환을 적용하고 싶을 수도 있습니다.  
+A common use case: type coercion. Zod는 `z.preprocess()`를 통해 이를 가능하게 합니다.
+
+```ts
+const castToString = z.preprocess((val) => String(val), z.string());
+```
+
+전처리(Preprocess)는 **ZodEffects** 인스턴스를 반환합니다. `ZodEffects`는 `preprocessing, refinements, transforms`와 관련된 모든 논리를 포함하는 래퍼 클래스입니다.
+
+# 커스텀 스키마
+
+`z.custom()`를 사용하여 모든 TypeScript 유형에 대한 Zod 스키마를 생성할 수 있습니다. 이는 템플릿 문자열 리터럴과 같이 Zod에서 기본적으로 지원되지 않는 유형에 대한 스키마를 만드는 데 유용합니다.
+
+```ts
+const px = z.custom<`${number}px`>((val) => {
+  return typeof val === "string" ? /^\d+px$/.test(val) : false;
+});
+
+type px = z.infer<typeof px>; // `${number}px`
+
+px.parse("42px"); // "42px"
+px.parse("42vw"); // throws;
+```
+
+`z.custom()`메서드에 유효성 검사 함수를 인수로 제공하지 않으면 Zod는 모든 값을 허용합니다. 주의하세요!
+
+```ts
+z.custom<{ arg: string }>(); // performs no validation
+```
+
+두 번째 인수를 전달하여 오류 메시지 및 기타 옵션을 사용자 정의할 수 있습니다. 이 매개변수는 `.refine`의 params  매개변수와 동일한 방식으로 작동합니다.
+
+```ts
+z.custom<...>((val) => ..., "custom error message");
+```
+
+# 스키마 메서드
+모든 Zod 스키마에는 특정 메소드들이 포함되어 있습니다.
+
+## .parse
+`.parse(data: unknown): T`
+
+Zod 스키마가 주어지면 `.parse` 메서드를 호출하여 유효한 `데이터`인지 확인할 수 있습니다. 만약 데이터가 유효하다면, 전체 유형 정보와 함께 값이 반환됩니다! 그렇지 않으면 오류가 발생합니다.
+
+>중요: `.parse`에서 반환된 값은 전달한 변수의 전체 복제본(deep clone) 입니다.
+
+```ts
+const stringSchema = z.string();
+
+stringSchema.parse("fish"); // => returns "fish"
+stringSchema.parse(12); // throws error
+```
+## .parseAsync
+`.parseAsync(data:unknown): Promise<T>`
+
+비동기 세분화 또는 트랜스폼을 사용하는 경우(나중에 자세히 설명합니다) `.parseAsync`를 사용해야 합니다.
+
+```ts
+const stringSchema = z.string().refine(async (val) => val.length <= 8);
+
+await stringSchema.parseAsync("hello"); // => returns "hello"
+await stringSchema.parseAsync("hello world"); // => throws error
+```
+
+## .safeParse
+`.safeParse(data:unknown): { success: true; data: T; } | { success: false; error: ZodError; }`
+
+검증이 실패할 때 Zod가 오류를 발생시키는 것을 원하지 않는다면 `.safeParse`를 사용합니다. 이 메소드는 성공적으로 구문 분석된 데이터 또는 검증 오류 원인에 대한 자세한 정보가 포함된 ZodError 인스턴스를 포함하는 객체를 반환합니다.
+
+```ts
+stringSchema.safeParse(12);
+// => { success: false; error: ZodError }
+
+stringSchema.safeParse("billie");
+// => { success: true; data: 'billie' }
+```
+
+결과는 판별 유니언이므로 오류를 매우 편리하게 처리할 수 있습니다.
+
+```ts
+const result = stringSchema.safeParse("billie");
+if (!result.success) {
+  // handle error then return
+  result.error;
+} else {
+  // do something
+  result.data;
+}
+```
+
+## .safeParseAsync
+
+> 약칭:`.spa`
+
+`safeParse`의 비동기 버전입니다.
+
+```ts
+await stringSchema.safeParseAsync("billie");
+```
+
+편의상 다음과 같이 별칭 `.spa`로 지정되었습니다.
+
+```ts
+await stringSchema.spa("billie");
+```
+
+## .refine
+`.refine(validator: (data:T)=>any, params?: RefineParams)`
+
+Zod를 사용하면 세분화(refinements)를 통해 사용자 지정 유효성 검사 로직을 제공할 수 있습니다. (여러 이슈 생성 및 오류 코드 사용자 지정과 같은 고급 기능은 `.superRefine`을 참조하세요.)
+
+Zod는 TypeScript를 최대한 가깝게 미러링하도록 설계되었습니다. 그러나 TypeScript의 유형 시스템에서 표현할 수 없는 소위 '세분화 유형'을 확인해야 하는 경우가 많이 있습니다. 예를 들어 숫자가 정수인지 또는 문자열이 유효한 이메일 주소인지 확인하는 것이 그 예입니다.
+
+예를 들어 `.refine` 메서드를 사용하여 Zod 스키마에 대한 사용자 정의 유효성 검사를 정의할 수 있습니다.
+
+```ts
+const myString = z.string().refine((val) => val.length <= 255, {
+  message: "String can't be more than 255 characters",
+});
+```
+
+> ⚠️ 세분화 함수는 던져서는 안 됩니다. 대신 실패를 알리는 거짓 값(a falsy value)을 반환해야 합니다.
+
+**인수**
+보시다시피 `.refine` 메서드는 두 가지 인수를 갖습니다.
+
+1. 첫 번째 인수는 검증 함수 입니다. 이 함수는 하나의 입력(유형 T, 즉 추론된 스키마 유형)을 가져와서 `any`를 반환합니다. 모든 진실한 값(truthy value)은 유효성 검사를 통과합니다. ( zod@1.6.2 이전에는 유효성 검사 함수가 불리언 값을 반환해야 했습니다.)
+2. 두 번째 인수는 몇 가지 옵션을 허용합니다. 이를 사용하여 특정 오류 처리 동작을 사용자 지정할 수 있습니다:
+
+```ts
+type RefineParams = {
+  // override error message
+  message?: string;
+
+  // appended to error path
+  path?: (string | number)[];
+
+  // params object you can use to customize message
+  // in error map
+  params?: object;
+};
+```
+
+고급 사례의 경우 두 번째 인수는 `RefineParams`를 반환하는 함수일 수도 있습니다.
+
+```ts
+const longString = z.string().refine(
+  (val) => val.length > 10,
+  (val) => ({ message: `${val} is not more than 10 characters` })
+);
+```
+
+**오류 경로 사용자 정의**
+
+```ts
+const passwordForm = z
+  .object({
+    password: z.string(),
+    confirm: z.string(),
+  })
+  .refine((data) => data.password === data.confirm, {
+    message: "Passwords don't match",
+    path: ["confirm"], // path of error
+  });
+
+passwordForm.parse({ password: "asdf", confirm: "qwer" });
+```
+
+`path` 매개변수를 제공했기 때문에 결과 오류는 다음과 같습니다.
+
+```ts
+ZodError {
+  issues: [{
+    "code": "custom",
+    "path": [ "confirm" ],
+    "message": "Passwords don't match"
+  }]
+}
+```
+
+**Asynchronous refinements**
+
+비동기 세분화(refinements)도 가능합니다.
+
+```ts
+const userId = z.string().refine(async (id) => {
+  // verify that ID exists in database
+  return true;
+});
+```
+
+⚠️ 비동기 세분화(refinements)를 사용하는 경우 데이터를 구문 분석할 때 `.parseAsync` 메서드를 사용해야 합니다! 그렇지 않으면 Zod가 오류를 발생시킵니다.
+
+**변환(transforms)과의 관계**
+
+변환(transforms) 및 세분화(refinements)는 인터리브될 수 있습니다.
+
+```ts
+z.string()
+  .transform((val) => val.length)
+  .refine((val) => val > 25);
+```
+
+## .superRefine
+`.refine` 메서드는 실제로는 `superRefine`이라는 더 다재다능하고 장황한 메서드 위에 문법적 설탕(syntactic sugar)을 얹은 것입니다. 다음은 예시입니다:
+
+```ts
+const Strings = z.array(z.string()).superRefine((val, ctx) => {
+  if (val.length > 3) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.too_big,
+      maximum: 3,
+      type: "array",
+      inclusive: true,
+      message: "Too many items 😡",
+    });
+  }
+
+  if (val.length !== new Set(val).size) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: `No duplicates allowed.`,
+    });
+  }
+});
+```
+
+원하는 만큼 이슈를 추가할 수 있습니다. 함수 실행 중에 `ctx.addIssue`가 호출되지 않으면 유효성 검사가 통과됩니다.
+
+일반적으로는 세분화(refinements)하면 항상 `ZodIssueCode.custom` 오류 코드가 포함된 이슈가 생성되지만, `superRefine`을 사용하면 모든 `ZodIssueCode`의 이슈를 던질 수 있습니다. 각 이슈 코드는 오류 처리 가이드에 자세히 설명되어 있습니다: ERROR_HANDLING.md.
+
+**조기 중단**
+기본적으로 구문 분석은 세분화 검사에 실패한 후에도 계속됩니다. 예를 들어, 여러 개의 세분화 검사를 함께 연결하면 모두 실행됩니다. 그러나 나중에 세분화가 실행되지 않도록 조기에 중단하는 것이 바람직할 수 있습니다. 이렇게 하려면 `fatal` 플래그를 ctx.addIssue에 전달하고 `z.NEVER`를 반환하세요.
+
+```ts
+const schema = z.number().superRefine((val, ctx) => {
+  if (val < 10) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "should be >= 10",
+      fatal: true,
+    });
+
+    return z.NEVER;
+  }
+
+  if (val !== 12) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "should be twelve",
+    });
+  }
+});
+```
+
+**유형 세분화**
+`refine()` 또는 `.superRefine()`에 유형 술어(type predicate)를 제공하면 결과 유형이 술어의 유형으로 좁혀집니다. 이 기능은 여러 개의 연쇄적인 세분화와 변환을 혼합하는 경우에 유용합니다:
+
+```ts
+const schema = z
+  .object({
+    first: z.string(),
+    second: z.number(),
+  })
+  .nullable()
+  .superRefine((arg, ctx): arg is { first: string; second: number } => {
+    if (!arg) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom, // customize your issue
+        message: "object should exist",
+      });
+    }
+
+    return z.NEVER; // The return value is not used, but we need to return something to satisfy the typing
+  })
+  // here, TS knows that arg is not null
+  .refine((arg) => arg.first === "bob", "`first` is not `bob`!");
+  ```
+
+⚠️ 유효성 검사 통과 여부를 표시하려면 불리언 값을 반환하는 대신 `ctx.addIssue()`를 사용해야 합니다. 함수를 실행하는 동안 `ctx.addIssue`가 호출되지 않으면 유효성 검사는 통과합니다.
+
+`🎃notice`
+> [타입스크립트의 type narrowing과 type predicates](https://velog.io/@devshk447/TIL-typescript-type-guard%EC%99%80-type-predicates)
 
 
+## .transform
+구문 분석 후 데이터를 변환하려면 `transform`메서드를 사용합니다.
+
+```ts
+const stringToNumber = z.string().transform((val) => val.length);
+
+stringToNumber.parse("string"); // => 6
+```
+
+**연결 순서**
+위의 stringToNumber는 `ZodEffects` 서브클래스의 인스턴스입니다. `ZodString`의 인스턴스가 아닙니다. `ZodString`의 내장 메서드(예: .email())를 사용하려면 **변환 전에** 해당 메서드를 적용해야 합니다.
+
+```ts
+const emailToDomain = z
+  .string()
+  .email()
+  .transform((val) => val.split("@")[1]);
+
+emailToDomain.parse("colinhacks@example.com"); // => example.com
+```
+
+**변환 중 유효성 검사**
+`.transform` 메서드는 값의 유효성 검사와 변환을 동시에 수행할 수 있습니다. 이는 종종 변환(transform)과 세분화(refine)를 연쇄적으로 사용하는 것보다 더 간단하고 중복이 적습니다.
+
+`.superRefine`과 마찬가지로 `transform` 함수는 유효성 검사 이슈를 등록하는 데 사용할 수 있는 `addIssue` 메서드가 있는 ctx 객체를 받습니다.
+
+```ts
+const numberInString = z.string().transform((val, ctx) => {
+  const parsed = parseInt(val);
+  if (isNaN(parsed)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Not a number",
+    });
+
+    // This is a special symbol you can use to
+    // return early from the transform function.
+    // It has type `never` so it does not affect the
+    // inferred return type.
+    return z.NEVER;
+  }
+  return parsed;
+});
+```
+
+**세분화에 대한 관계**
+변환과 세분화는 인터리브될 수 있습니다. 선언된 순서대로 실행됩니다.
+
+> 인터리브(interleaved) : 교차해서,계속적으로 수행가능
+
+```ts
+const nameToGreeting = z
+  .string()
+  .transform((val) => val.toUpperCase())
+  .refine((val) => val.length > 15)
+  .transform((val) => `Hello ${val}`)
+  .refine((val) => val.indexOf("!") === -1);
+```
+
+**비동기 변환(Async transforms)**
+비동기 변환도 가능합니다.
+
+```ts
+const IdToUser = z
+  .string()
+  .uuid()
+  .transform(async (id) => {
+    return await getUserById(id);
+  });
+```
+⚠️ 스키마에 비동기 변환이 포함된 경우 `.parseAsync()` 또는 `.safeParseAsync()`를 사용하여 데이터를 구문 분석해야 합니다. 그렇지 않으면 Zod에서 오류가 발생합니다.
+
+## .default
+트랜스폼을 사용하여 Zod에서 '기본값'이라는 개념을 구현할 수 있습니다.
+
+```ts
+const stringWithDefault = z.string().default("tuna");
+
+stringWithDefault.parse(undefined); // => "tuna"
+```
+
+선택적으로 기본값을 생성해야 할 때마다 다시 실행되는 함수를 `.default`에 전달할 수 있습니다:
+
+```ts
+const numberWithRandomDefault = z.number().default(Math.random);
+
+numberWithRandomDefault.parse(undefined); // => 0.4413456736055323
+numberWithRandomDefault.parse(undefined); // => 0.1871840107401901
+numberWithRandomDefault.parse(undefined); // => 0.7223408162401552
+```
+
+개념적으로 Zod가 기본값을 처리하는 방법은 다음과 같습니다.
+
+1. 입력이 `undefined`이면 기본값이 반환됩니다.
+2. 그렇지 않으면 기본 스키마를 사용하여 데이터가 구문 분석됩니다.
+
+## .describe
+`.describe()`를 사용하여 결과 스키마에 설명 속성을 추가합니다.
+
+```ts
+const documentedString = z
+  .string()
+  .describe("A useful bit of text, if you know what to do with it.");
+documentedString.description; // A useful bit of text…
+```
+이는 예를 들어 `zod-to-json-schema`와 같은 라이브러리를 사용하여 JSON 스키마에서 필드를 문서화하는 데 유용할 수 있습니다.
+
+## .catch
+.catch()를 사용하여 구문 분석 오류 발생 시 반환할 "catch 값"을 제공하세요.
+
+```ts
+const numberWithCatch = z.number().catch(42);
+
+numberWithCatch.parse(5); // => 5
+numberWithCatch.parse("tuna"); // => 42
+```
+
+선택적으로 기본값을 생성해야 할 때마다 다시 실행되는 함수를 `.catch`에 전달할 수 있습니다. 이 함수에는 캐치된 오류가 포함된 ctx 객체가 전달됩니다.
+
+```ts
+const numberWithRandomCatch = z.number().catch((ctx) => {
+  ctx.error; // the caught ZodError
+  return Math.random();
+});
+
+numberWithRandomCatch.parse("sup"); // => 0.4413456736055323
+numberWithRandomCatch.parse("sup"); // => 0.1871840107401901
+numberWithRandomCatch.parse("sup"); // => 0.7223408162401552
+```
+
+개념적으로 Zod가 "catch value"를 처리하는 방법은 다음과 같습니다.
+
+1. 데이터는 기본 스키마를 사용하여 구문 분석됩니다.
+2. 구문 분석에 실패하면 "catch value"가 반환됩니다.
+
+## .optional
+스키마의 선택적 버전을 반환하는 편의 메서드입니다.
+
+```ts
+const optionalString = z.string().optional(); // string | undefined
+
+// equivalent to
+z.optional(z.string());
+```
+
+## .nullable
+스키마의 null 허용 버전을 반환하는 편의 메서드입니다.
+
+```ts
+const nullableString = z.string().nullable(); // string | null
+
+// equivalent to
+z.nullable(z.string());
+```
+
+## .nullish
+스키마의 "null" 버전을 반환하는 편의 메서드입니다. `Nullish` 스키마는 정의되지 않은 스키마와 null을 모두 허용합니다. TypeScript 3.7 릴리스 노트에서 "nullish"의 개념에 대해 자세히 알아보세요.
+
+```ts
+const nullishString = z.string().nullish(); // string | null | undefined
+
+// equivalent to
+z.string().nullable().optional();
+```
+
+## .array
+지정된 유형에 대한 배열 스키마를 반환하는 편의 메서드입니다.
+
+```ts
+const stringArray = z.string().array(); // string[]
+
+// equivalent to
+z.array(z.string());
+```
+
+## .promise
+Promise 유형에 대한 편의 메서드입니다.
+
+```ts
+const stringPromise = z.string().promise(); // Promise<string>
+
+// equivalent to
+z.promise(z.string());
+```
+
+## .or
+**유니언 타입**에 대한 편의 메서드입니다.
+
+```ts
+const stringOrNumber = z.string().or(z.number()); // string | number
+
+// equivalent to
+z.union([z.string(), z.number()]);
+```
+
+## .and
+교차 유형을 생성하는 편의 메서드입니다.
+
+```ts
+const nameAndAge = z
+  .object({ name: z.string() })
+  .and(z.object({ age: z.number() })); // { name: string } & { age: number }
+
+// equivalent to
+z.intersection(z.object({ name: z.string() }), z.object({ age: z.number() }));
+```
+## .brand
+`.brand<T>() => ZodBranded<this, B>`
+
+TypeScript의 타입 시스템은 구조적이어서 구조적으로 동일한 두 타입은 모두 동일한 것으로 간주합니다.
+
+```ts
+type Cat = { name: string };
+type Dog = { name: string };
+
+const petCat = (cat: Cat) => {};
+const fido: Dog = { name: "fido" };
+petCat(fido); // works fine
+```
+`🎃notice`
+[[Typescript] 덕 타이핑, 구조적 타이핑, 명목적 타이핑
+](https://velog.io/@jasmine0714/%EB%8D%95%ED%83%80%EC%9D%B4%ED%95%91vs%EA%B5%AC%EC%A1%B0%EC%A0%81%ED%83%80%EC%9D%B4%ED%95%91)
+
+어떤 경우에는 타입스크립트 내에서 명목적 타이핑을 시뮬레이션하는 것이 바람직할 수 있습니다. 예를 들어 Zod에서 유효성이 검사된 입력만 받아들이는 함수를 작성하고 싶을 수 있습니다. 이는 브랜드 타입(일명 불투명 타입)으로 구현할 수 있습니다.
+
+```ts
+const Cat = z.object({ name: z.string() }).brand<"Cat">();
+type Cat = z.infer<typeof Cat>;
+
+const petCat = (cat: Cat) => {};
+
+// this works
+const simba = Cat.parse({ name: "simba" });
+petCat(simba);
+
+// this doesn't
+petCat({ name: "fido" });
+```
+
+내부적으로는 교차 유형을 사용하여 추론된 유형에 '브랜드'를 붙이는 방식으로 작동합니다. 이렇게 하면 일반/브랜드가 없는 데이터 구조는 더 이상 추론된 스키마 유형에 할당할 수 없습니다.
+
+```ts
+const Cat = z.object({ name: z.string() }).brand<"Cat">();
+type Cat = z.infer<typeof Cat>;
+// {name: string} & {[symbol]: "Cat"}
+```
+
+브랜디드 유형은 .parse의 런타임 결과에 영향을 주지 않습니다. 정적 전용(static-only) 구조입니다.
+
+## .readonly
+`.readonly() => ZodReadonly<this>`
+
+이 메서드는 기본 스키마를 사용하여 입력을 구문 분석한 다음 결과에 대해 `Object.freeze()`를 호출하는 `ZodReadOnly` 스키마 인스턴스를 반환합니다. 추론된 유형도 읽기 전용(readonly)으로 표시됩니다.
+
+```ts
+const schema = z.object({ name: string }).readonly();
+type schema = z.infer<typeof schema>;
+// Readonly<{name: string}>
+
+const result = schema.parse({ name: "fido" });
+result.name = "simba"; // error
+```
+
+추론된 유형은 관련성이 있는 경우 TypeScript의 빌트인 readonly 유형을 사용합니다.
+
+```ts
+z.array(z.string()).readonly();
+// readonly string[]
+
+z.tuple([z.string(), z.number()]).readonly();
+// readonly [string, number]
+
+z.map(z.string(), z.date()).readonly();
+// ReadonlyMap<string, Date>
+
+z.set(z.string()).readonly();
+// ReadonlySet<Promise<string>>
+```
+
+## .pipe
+스키마를 유효성 검사 "파이프라인"으로 연결할 수 있습니다. `.transform()` 이후의 결과를 쉽게 유효성 검사할 때 유용합니다:
+
+```ts
+z.string()
+  .transform((val) => val.length)
+  .pipe(z.number().min(5));
+```
+
+이 `.pipe()`메서드는 `ZodPipeline`인스턴스를 반환합니다.
+
+## .pipe()를 사용하여 z.coerce의 일반적인 문제를 해결할 수 있습니다.
+선택한 강제(coercion) 유형으로 원활히 동작하게 입력을 제한할 수 있습니다. 그런 다음 `.pipe()`를 사용하여 강제 형변환(coercion)를 적용합니다.
+
+입력 제약 없는 경우:
+```ts
+const toDate = z.coerce.date();
+
+// works intuitively
+console.log(toDate.safeParse("2023-01-01").success); // true
+
+// might not be what you want
+console.log(toDate.safeParse(null).success); // true
+```
+
+제한된 입력의 경우:
+```ts
+const datelike = z.union([z.number(), z.string(), z.date()]);
+const datelikeToDate = datelike.pipe(z.coerce.date());
+
+// still works intuitively
+console.log(datelikeToDate.safeParse("2023-01-01").success); // true
+
+// more likely what you want
+console.log(datelikeToDate.safeParse(null).success); // false
+```
+
+이 기술을 사용하여 잡히지 않은 오류를 발생시키는 강제(coercion)를 피할 수도 있습니다.
+
+입력 제약 없는 경우:
+
+```ts
+const toBigInt = z.coerce.bigint();
+
+// works intuitively
+console.log(toBigInt.safeParse("42")); // true
+
+// probably not what you want
+console.log(toBigInt.safeParse(null)); // throws uncaught error
+```
+
+제한된 입력의 경우:
+
+```ts
+const toNumber = z.number().or(z.string()).pipe(z.coerce.number());
+const toBigInt = z.bigint().or(toNumber).pipe(z.coerce.bigint());
+
+// still works intuitively
+console.log(toBigInt.safeParse("42").success); // true
+
+// error handled by zod, more likely what you want
+console.log(toBigInt.safeParse(null).success); // false
+```
 
 
 
